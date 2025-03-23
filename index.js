@@ -67,16 +67,16 @@ app.post("/webhook", line.middleware(config), express.json(), async (req, res) =
       return reply(`🤖 使用說明：\n1️⃣ 輸入「/語言代碼 翻譯內容」，例如：/ja 今天天氣真好\n2️⃣ 或先輸入「/語言代碼」設定，再單獨輸入文字自動翻譯\n3️⃣ 若要一次翻成多國語言，請使用 /multi 例如：/multi 我肚子餓了\n✅ 支援語言代碼：\n${allowedLangs.map(l => '/' + l).join(' ')}`);
     }
 
-    const [cmd, ...rest] = text.split(" ");
-    const maybeLang = cmd.replace("/", "");
-    const msg = rest.join(" ").trim();
+    const [cmd, ...msgParts] = text.split(" ");
+    const langFromCmd = cmd.startsWith("/") ? cmd.slice(1) : null;
+    const msg = msgParts.join(" ").trim();
 
-    if (allowedLangs.includes(maybeLang)) {
+    if (allowedLangs.includes(langFromCmd)) {
       if (msg) {
-        userLangMap[userId] = maybeLang;
+        userLangMap[userId] = langFromCmd;
       } else {
-        userLangMap[userId] = maybeLang;
-        return reply(`✅ 已設定語言為：${maybeLang}`);
+        userLangMap[userId] = langFromCmd;
+        return reply(`✅ 已設定語言為：${langFromCmd}`);
       }
     }
 
@@ -101,17 +101,6 @@ app.post("/webhook", line.middleware(config), express.json(), async (req, res) =
       return reply(results.join("\n"));
     }
 
-    const [langCmd, ...contentParts] = text.trim().split(" ");
-    const shortLang = langCmd.startsWith("/") ? langCmd.substring(1) : null;
-    const content = contentParts.join(" ").trim();
-
-    if (shortLang && allowedLangs.includes(shortLang)) {
-      userLangMap[userId] = shortLang;
-      if (!content) {
-        return reply(`✅ 已設定語言為：${shortLang}`);
-      }
-    }
-
     const targetLangRaw = userLangMap[userId];
     if (!targetLangRaw) {
       if (!userNotifiedMap[userId]) {
@@ -130,7 +119,7 @@ app.post("/webhook", line.middleware(config), express.json(), async (req, res) =
         model: "gpt-3.5-turbo",
         messages: [
           { role: "system", content: `請翻譯為 ${targetLang}` },
-          { role: "user", content: content || text },
+          { role: "user", content: msg || text },
         ],
       }, {
         headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
