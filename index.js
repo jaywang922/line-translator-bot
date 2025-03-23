@@ -80,6 +80,8 @@ app.post("/webhook", line.middleware(config), express.json(), async (req, res) =
 
     if (text.startsWith("/multi ")) {
       const input = text.replace("/multi", "").trim();
+      if (!input) return;
+
       const results = await Promise.all(multiLangs.map(async (lang) => {
         try {
           const completion = await axios.post("https://api.openai.com/v1/chat/completions", {
@@ -112,12 +114,15 @@ app.post("/webhook", line.middleware(config), express.json(), async (req, res) =
     if (targetLang === "tw") targetLang = "zh-TW";
     if (targetLang === "cn") targetLang = "zh-CN";
 
+    const prompt = msg || text;
+    if (!prompt || prompt.startsWith("/")) continue; // 防止空翻譯或語法錯誤
+
     try {
       const completion = await axios.post("https://api.openai.com/v1/chat/completions", {
         model: "gpt-3.5-turbo",
         messages: [
           { role: "system", content: `請翻譯為 ${targetLang}` },
-          { role: "user", content: msg || text },
+          { role: "user", content: prompt },
         ],
       }, {
         headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
