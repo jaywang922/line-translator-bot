@@ -62,7 +62,7 @@ app.post("/webhook",
 /debug 👉 查看目前設定語言
 /help 👉 查看使用說明與所有語言代碼
 
-✅ 支援語言代碼：
+✅ 支援語言代碼（可用於 /to）：
 ${allowedLangs.map(code => `/${code}`).join(" ")}`;
           await client.replyMessage(event.replyToken, {
             type: "text",
@@ -111,7 +111,7 @@ ${allowedLangs.map(code => `/${code}`).join(" ")}`;
                   messages: [
                     {
                       role: "system",
-                      content: `你是一個翻譯專家，請將輸入翻譯成 ${lang}`
+                      content: `你是一位語言專家，請將以下內容完整翻譯成「${lang}語」，輸出內容請完全使用 ${lang} 語言，不要包含其他語言。`
                     },
                     {
                       role: "user",
