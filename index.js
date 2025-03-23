@@ -49,9 +49,19 @@ app.post("/webhook",
         ];
 
         const userLangMap = global.userLangMap || (global.userLangMap = {});
+        const userNotifiedMap = global.userNotifiedMap || (global.userNotifiedMap = {});
 
         if (text === "/help") {
-          const helpMessage = `🤖 使用說明：\n請直接輸入想翻譯的句子，我會幫你翻成預設語言（預設英文）\n\n📌 指令：\n/to 語言代碼 👉 設定翻譯語言，例如 /to ja\n/multi 👉 同時翻譯成多國語言\n/help 👉 查看說明與語言列表\n\n✅ 支援語言代碼：\n${allowedLangs.map(code => `/${code}`).join(" ")}`;
+          const helpMessage = `🤖 使用說明：
+請直接輸入想翻譯的句子，若尚未設定語言，會提示您設定。
+
+📌 指令：
+/to 語言代碼 👉 設定預設翻譯語言，例如 /to ja（翻成日文）
+/multi 👉 同時翻譯成多國語言
+/help 👉 查看說明與語言列表
+
+✅ 支援語言代碼：
+${allowedLangs.map(code => `/${code}`).join(" ")}`;
           await client.replyMessage(event.replyToken, {
             type: "text",
             text: helpMessage
@@ -78,7 +88,7 @@ app.post("/webhook",
 
         if (text.startsWith("/multi ")) {
           const content = text.replace("/multi", "").trim();
-          const targetLangs = ["en", "ja", "ko", "th", "vi", "id", "ms"];
+          const targetLangs = ["en", "tw", "ja", "ko", "th", "vi", "id", "my"];
           const results = [];
 
           for (const lang of targetLangs) {
@@ -118,10 +128,14 @@ app.post("/webhook",
         }
 
         if (!userLangMap[userId]) {
-          await client.replyMessage(event.replyToken, {
-            type: "text",
-            text: "❗ 請先輸入 /to 語言代碼 例如：/to ja 或輸入 /help 查看支援語言"
-          });
+          if (!userNotifiedMap[userId]) {
+            userNotifiedMap[userId] = true;
+            await client.replyMessage(event.replyToken, {
+              type: "text",
+              text: "👋 歡迎使用翻譯機器人，請先輸入 /to 語言代碼，例如：/to en 或輸入 /help 查看使用方式"
+            });
+          }
+          console.log(`🟡 使用者 ${userId} 尚未設定語言，略過回覆`);
           continue;
         }
 
@@ -153,11 +167,13 @@ app.post("/webhook",
           );
 
           const translated = completion.data.choices[0].message.content;
+          const shortText = translated.length > 20 ? translated.slice(0, 20) + "..." : translated;
           const audioUrl = `https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&q=${encodeURIComponent(translated)}&tl=${targetLang}`;
+          const shortUrl = `https://gtranslate.sound/${encodeURIComponent(shortText)}`; // Placeholder 短網址
 
           await client.replyMessage(event.replyToken, {
             type: "text",
-            text: `${translated}\n🔊 ${audioUrl}`
+            text: `${translated}\n🔊 ${shortUrl}`
           });
         } catch (err) {
           console.error("❌ 翻譯錯誤:", err.response?.data || err.message);
