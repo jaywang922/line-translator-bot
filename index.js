@@ -167,13 +167,9 @@ ${allowedLangs.map(code => `/${code}`).join(" ")}`;
           );
 
           const translated = completion.data.choices[0].message.content;
-          const shortText = translated.length > 20 ? translated.slice(0, 20) + "..." : translated;
-          const audioUrl = `https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&q=${encodeURIComponent(translated)}&tl=${targetLang}`;
-          const shortUrl = `https://gtranslate.sound/${encodeURIComponent(shortText)}`; // Placeholder 短網址
-
           await client.replyMessage(event.replyToken, {
             type: "text",
-            text: `${translated}\n🔊 ${shortUrl}`
+            text: `${translated}\n🔊 點我播放語音` // ✅ 簡短提示語音播放
           });
         } catch (err) {
           console.error("❌ 翻譯錯誤:", err.response?.data || err.message);
