@@ -132,31 +132,7 @@ app.post("/webhook", line.middleware(config), express.json(), async (req, res) =
       });
 
       const translated = completion.data.choices[0].message.content;
-      const cleanText = translated.replace(/\n/g, " ").trim().slice(0, 200);
-
-      if (!cleanText || cleanText.length < 2 || /[\u4e00-\u9fa5\w]/.test(cleanText) === false) {
-        await safeReply(replyToken, `⚠️ 翻譯結果異常，無法產生語音：\n${translated}`);
-        continue;
-      }
-
-      const ttsResp = await axios.post(
-        "https://api.openai.com/v1/audio/speech",
-        {
-          model: "tts-1",
-          voice: "nova",
-          input: cleanText,
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-          },
-          responseType: "arraybuffer",
-        }
-      );
-
-      const base64Audio = Buffer.from(ttsResp.data).toString("base64");
-      const audioUrl = `data:audio/mpeg;base64,${base64Audio}`;
-      await safeReply(replyToken, `${translated}\n🔊 點我播放語音：${audioUrl}`);
+      await safeReply(replyToken, translated);
     } catch (err) {
       console.error("❌ 翻譯錯誤:", err.response?.data || err.message);
       await safeReply(replyToken, "⚠️ 翻譯失敗，請稍後再試");
