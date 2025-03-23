@@ -28,7 +28,15 @@ app.post(
   line.middleware(config),
   async (req, res) => {
     const events = req.body.events || [];
-    const allowedLangs = require("./languages.json");
+
+    // 直接內嵌語言代碼
+    const allowedLangs = [
+      "en", "ja", "ko", "zh-TW", "zh-CN", "fr", "de", "es", "th",
+      "it", "nl", "ru", "id", "vi", "ar", "hi", "pt", "ms", "tr",
+      "pl", "uk", "sv", "fi", "no", "da", "cs", "ro", "hu", "he",
+      "bg", "hr", "sk", "sl", "et", "lv", "lt"
+    ];
+
     const multiLangs = ["en", "tw", "ja", "ko", "th", "vi", "id"];
 
     const userLangMap = global.userLangMap || (global.userLangMap = {});
