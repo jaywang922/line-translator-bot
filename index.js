@@ -62,7 +62,7 @@ app.post("/webhook", line.middleware(config), express.json(), async (req, res) =
     };
 
     if (text === "/help") {
-      return reply(`🤖 使用說明：\n1️⃣ 輸入「/語言代碼 翻譯內容」，例如：/ja 今天天氣真好\n2️⃣ 或先輸入「/語言代碼」設定，再單獨輸入文字自動翻譯\n3️⃣ 若要一次翻成多國語言，請使用 /multi 例如：/multi 我肚子餓了\n✅ 支援語言代碼：\n${allowedLangs.map(l => '/' + l).join(' ')}`);
+      return await reply(`🤖 使用說明：\n1️⃣ 輸入「/語言代碼 翻譯內容」，例如：/ja 今天天氣真好\n2️⃣ 或先輸入「/語言代碼」設定，再單獨輸入文字自動翻譯\n3️⃣ 若要一次翻成多國語言，請使用 /multi 例如：/multi 我肚子餓了\n✅ 支援語言代碼：\n${allowedLangs.map(l => '/' + l).join(' ')}`);
     }
 
     const [cmd, ...msgParts] = text.split(" ");
@@ -73,7 +73,7 @@ app.post("/webhook", line.middleware(config), express.json(), async (req, res) =
       if (msg) {
         userLangMap[userId] = langFromCmd;
       } else {
-        return reply("❗ 請輸入正確的翻譯內容，例如：/ja 你好 或輸入 /help 查看說明");
+        return await reply("❗ 請輸入正確的翻譯內容，例如：/ja 你好 或輸入 /help 查看說明");
       }
     }
 
@@ -97,7 +97,7 @@ app.post("/webhook", line.middleware(config), express.json(), async (req, res) =
           return `❌ ${lang}: 失敗`;
         }
       }));
-      return reply(results.join("\n"));
+      return await reply(results.join("\n"));
     }
 
     const targetLangRaw = userLangMap[userId];
@@ -128,8 +128,12 @@ app.post("/webhook", line.middleware(config), express.json(), async (req, res) =
       });
 
       const translated = completion.data.choices[0].message.content;
-      const audioUrl = `https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&q=${encodeURIComponent(translated)}&tl=${targetLang}`;
+      if (!translated || typeof translated !== "string" || translated.trim() === "") {
+        console.warn("⚠️ 翻譯結果為空，略過回覆");
+        continue;
+      }
 
+      const audioUrl = `https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&q=${encodeURIComponent(translated)}&tl=${targetLang}`;
       await reply(`${translated}\n🔊 ${audioUrl}`);
     } catch (err) {
       console.error("❌ 翻譯錯誤:", err.response?.data || err.message);
