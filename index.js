@@ -25,7 +25,8 @@ app.use(express.json());
 // 預設翻譯語言（可被 /to 指令更改）
 const userLangMap = {};
 
-app.post("/webhook", express.raw({ type: "*/*" }), line.middleware(config), async (req, res) => {
+// ✅ PATCH：移除 express.raw 導致 middleware 驗證錯誤
+app.post("/webhook", line.middleware(config), async (req, res) => {
   const events = req.body.events;
   for (let event of events) {
     if (event.type === "message" && event.message.type === "text") {
