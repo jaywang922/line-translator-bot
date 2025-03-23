@@ -20,7 +20,6 @@ const config = {
 
 const client = new line.Client(config);
 const app = express();
-app.use(express.json());
 
 const allowedLangs = [
   "en", "ja", "ko", "zh-TW", "zh-CN", "fr", "de", "es", "th", "it", "nl",
@@ -31,7 +30,7 @@ const multiLangs = ["en", "tw", "ja", "ko", "th", "vi", "id"];
 const userLangMap = {};
 const userNotifiedMap = {};
 
-app.post("/webhook", line.middleware(config), async (req, res) => {
+app.post("/webhook", line.middleware(config), express.json(), async (req, res) => {
   const events = req.body.events || [];
 
   for (let event of events) {
@@ -42,7 +41,7 @@ app.post("/webhook", line.middleware(config), async (req, res) => {
     const reply = (msg) => client.replyMessage(event.replyToken, { type: "text", text: msg });
 
     if (text === "/help") {
-      return reply(`🤖 使用說明：\n請輸入「/to 語言代碼」設定翻譯語言，例如：/to ja\n然後直接輸入想翻譯的句子即可，例如：「我想吃雞蛋」\n/multi 可翻譯多國語言\n✅ 支援語言代碼：\n${allowedLangs.map(l => '/' + l).join(' ')}`);
+      return reply(`🤖 使用說明：\n1️⃣ 輸入「/to 語言代碼」設定翻譯語言，例如：/to ja\n2️⃣ 接著輸入想翻譯的內容，系統會自動翻譯並附上語音播放連結\n3️⃣ 若要一次翻成多國語言，請使用 /multi 例如：/multi 我肚子餓了\n✅ 支援語言代碼：\n${allowedLangs.map(l => '/' + l).join(' ')}`);
     }
 
     if (text.startsWith("/to ")) {
