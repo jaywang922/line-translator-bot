@@ -82,17 +82,6 @@ app.post("/webhook",
         const targetLang = userLangMap[userId] || "en";
 
         try {
-          const detectLangResp = await axios.post(
-            "https://translation.googleapis.com/language/translate/v2/detect",
-            { q: text },
-            {
-              headers: { "Content-Type": "application/json" },
-              params: { key: process.env.GOOGLE_TRANSLATE_API_KEY }
-            }
-          );
-
-          const sourceLang = detectLangResp.data.data.detections[0][0].language;
-
           const completion = await axios.post(
             "https://api.openai.com/v1/chat/completions",
             {
@@ -100,7 +89,7 @@ app.post("/webhook",
               messages: [
                 {
                   role: "system",
-                  content: `你是一個專業翻譯機器人，請將以下 ${sourceLang} 語言的句子翻譯成 ${targetLang}`
+                  content: `你是一個專業翻譯機器人，請將以下句子翻譯成 ${targetLang}`
                 },
                 {
                   role: "user",
