@@ -20,9 +20,9 @@ const config = {
 
 const client = new line.Client(config);
 const app = express();
-app.use(express.json());
 
-app.use("/webhook", line.middleware(config), async (req, res) => {
+// 使用 raw body 處理 LINE Webhook 驗證
+app.post("/webhook", express.raw({ type: "*/*" }), line.middleware(config), async (req, res) => {
   const events = req.body.events;
   for (let event of events) {
     if (event.type === "message" && event.message.type === "text") {
@@ -39,7 +39,12 @@ app.use("/webhook", line.middleware(config), async (req, res) => {
       ];
 
       if (cmd === "/help") {
-        const helpMessage = `✅ 支援語言指令如下：\n${allowedLangs.map(code => `/${code}`).join(" ")}`;
+        const helpMessage = `🤖 使用說明：
+請輸入「/語言代碼 要翻譯的文字」，例如：
+/ja 今天天氣真好
+
+✅ 支援語言指令如下：
+${allowedLangs.map(code => `/${code}`).join(" ")}`;
         await client.replyMessage(event.replyToken, {
           type: "text",
           text: helpMessage
@@ -108,7 +113,8 @@ app.use("/webhook", line.middleware(config), async (req, res) => {
   res.sendStatus(200);
 });
 
-app.use("/", (req, res) => {
+// 保留 GET / 測試用
+app.get("/", (req, res) => {
   res.send("✅ Bot is running");
 });
 
