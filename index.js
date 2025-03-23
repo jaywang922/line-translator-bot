@@ -17,7 +17,6 @@ const allowedLangs = [
   "it", "nl", "ru", "id", "vi", "pt", "ms"
 ];
 
-const allowedUsers = ["U1eac7319879549c0d6cf9ee5a5062f65"];
 
 const safeReply = async (token, message) => {
   try {
@@ -66,10 +65,7 @@ app.post("/webhook", line.middleware(config), express.json(), async (req, res) =
     const userId = event.source.userId;
     console.log("👤 使用者:", userId, "說了:", text);
 
-    if (!allowedUsers.includes(userId)) {
-      console.warn("⛔ 非授權使用者:", userId);
-      continue;
-    }
+    
 
     if (!text) continue;
 
