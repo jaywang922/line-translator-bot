@@ -38,7 +38,17 @@ app.post("/webhook", line.middleware(config), express.json(), async (req, res) =
 
     const text = event.message.text.trim();
     const userId = event.source.userId;
-    const reply = (msg) => client.replyMessage(event.replyToken, { type: "text", text: msg });
+    const reply = async (msg) => {
+      try {
+        const safeMsg = msg.length > 4000 ? msg.slice(0, 4000) + "..." : msg;
+        await client.replyMessage(event.replyToken, {
+          type: "text",
+          text: safeMsg
+        });
+      } catch (err) {
+        console.error("❌ 回覆錯誤:", err.response?.data || err.message);
+      }
+    };
 
     if (text === "/help") {
       return reply(`🤖 使用說明：\n1️⃣ 輸入「/語言代碼 翻譯內容」，例如：/ja 今天天氣真好\n2️⃣ 或先輸入「/語言代碼」設定，再單獨輸入文字自動翻譯\n3️⃣ 若要一次翻成多國語言，請使用 /multi 例如：/multi 我肚子餓了\n✅ 支援語言代碼：\n${allowedLangs.map(l => '/' + l).join(' ')}`);
