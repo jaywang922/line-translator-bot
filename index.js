@@ -33,18 +33,25 @@ app.post("/webhook",
         const text = event.message.text.trim();
         const userId = event.source.userId;
 
-        // 📘 支援語言列表
+        // 📘 支援語言列表（ISO 639-1 標準）
         const allowedLangs = [
-          "en", "ja", "ko", "zh-TW", "zh-CN",
-          "fr", "de", "es", "th", "it",
-          "nl", "ru", "id", "vi", "ar", "hi"
+          "af", "am", "ar", "az", "be", "bg", "bn", "bs", "ca", "ceb",
+          "co", "cs", "cy", "da", "de", "el", "en", "eo", "es", "et", "eu",
+          "fa", "fi", "fr", "fy", "ga", "gd", "gl", "gu", "ha", "haw",
+          "he", "hi", "hmn", "hr", "ht", "hu", "hy", "id", "ig", "is",
+          "it", "ja", "jw", "ka", "kk", "km", "kn", "ko", "ku", "ky",
+          "la", "lb", "lo", "lt", "lv", "mg", "mi", "mk", "ml", "mn",
+          "mr", "ms", "mt", "my", "ne", "nl", "no", "ny", "pa", "pl",
+          "ps", "pt", "ro", "ru", "rw", "sd", "si", "sk", "sl", "sm",
+          "sn", "so", "sq", "sr", "st", "su", "sv", "sw", "ta", "te",
+          "tg", "th", "tk", "tl", "tr", "tt", "ug", "uk", "ur", "uz",
+          "vi", "xh", "yi", "yo", "zh", "tw", "cn", "zu"
         ];
 
-        // 用戶語言對應表（儲存每位用戶設定的語言）
         const userLangMap = global.userLangMap || (global.userLangMap = {});
 
         if (text === "/help") {
-          const helpMessage = `🤖 使用說明：\n請直接輸入想翻譯的句子，我會幫你翻成預設語言（預設英文）\n\n📌 指令：\n/to 語言代碼 👉 設定翻譯語言，例如 /to ja\n/help 👉 查看說明與語言列表\n\n✅ 支援語言代碼：\n${allowedLangs.map(code => `/${code}`).join(" ")}`;
+          const helpMessage = `🤖 使用說明：\n請直接輸入想翻譯的句子，我會幫你翻成預設語言（預設英文）\n\n📌 指令：\n/to 語言代碼 👉 設定翻譯語言，例如 /to ja\n/multi 👉 同時翻譯成多國語言\n/help 👉 查看說明與語言列表\n\n✅ 支援語言代碼：\n${allowedLangs.map(code => `/${code}`).join(" ")}`;
           await client.replyMessage(event.replyToken, {
             type: "text",
             text: helpMessage
@@ -52,7 +59,6 @@ app.post("/webhook",
           continue;
         }
 
-        // 指令 /to ja
         if (text.startsWith("/to ")) {
           const newLang = text.replace("/to", "").trim();
           if (allowedLangs.includes(newLang)) {
@@ -70,7 +76,46 @@ app.post("/webhook",
           continue;
         }
 
-        // 沒設定預設語言就提示
+        if (text === "/multi") {
+          const targetLangs = ["en", "ja", "ko", "th", "vi", "id", "ml"];
+          const results = [];
+
+          for (const lang of targetLangs) {
+            try {
+              const completion = await axios.post(
+                "https://api.openai.com/v1/chat/completions",
+                {
+                  model: "gpt-3.5-turbo",
+                  messages: [
+                    {
+                      role: "system",
+                      content: `你是一個翻譯專家，請將輸入翻譯成 ${lang}`
+                    },
+                    {
+                      role: "user",
+                      content: text
+                    }
+                  ]
+                },
+                {
+                  headers: {
+                    Authorization: `Bearer ${process.env.OPENAI_API_KEY}`
+                  }
+                }
+              );
+              results.push(`🔸 ${lang}: ${completion.data.choices[0].message.content}`);
+            } catch (e) {
+              results.push(`❌ ${lang}: 翻譯失敗`);
+            }
+          }
+
+          await client.replyMessage(event.replyToken, {
+            type: "text",
+            text: results.join("\n")
+          });
+          continue;
+        }
+
         if (!userLangMap[userId]) {
           await client.replyMessage(event.replyToken, {
             type: "text",
@@ -79,7 +124,9 @@ app.post("/webhook",
           continue;
         }
 
-        const targetLang = userLangMap[userId] || "en";
+        let targetLang = userLangMap[userId];
+        if (targetLang === "tw") targetLang = "zh-TW";
+        if (targetLang === "cn") targetLang = "zh-CN";
 
         try {
           const completion = await axios.post(
