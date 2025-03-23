@@ -60,13 +60,17 @@ app.post("/webhook", line.middleware(config), express.json(), async (req, res) =
     const userId = event.source.userId;
     const replyToken = event.replyToken;
 
-    const [cmd, ...msgParts] = text.split(" ");
-    const langFromCmd = cmd.startsWith("/") ? cmd.slice(1) : null;
-    const msg = msgParts.join(" ").trim();
+    if (text.startsWith("/help") && text.trim() !== "/help") {
+      return safeReply(replyToken, "⚠️ 請直接輸入 /help 查看使用說明，後面不要加其他文字喔！");
+    }
 
     if (text === "/help") {
       return safeReply(replyToken, `🤖 使用說明：\n1️⃣ 輸入「/語言代碼 翻譯內容」，例如：/ja 今天天氣真好\n2️⃣ 或先輸入「/語言代碼」設定，再單獨輸入文字自動翻譯\n3️⃣ 若要一次翻成多國語言，請使用 /multi 例如：/multi 我肚子餓了\n✅ 支援語言代碼：\n${allowedLangs.map(l => '/' + l).join(' ')}`);
     }
+
+    const [cmd, ...msgParts] = text.split(" ");
+    const langFromCmd = cmd.startsWith("/") ? cmd.slice(1) : null;
+    const msg = msgParts.join(" ").trim();
 
     if (allowedLangs.includes(langFromCmd)) {
       if (msg) {
