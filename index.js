@@ -20,16 +20,17 @@ const config = {
 
 const client = new line.Client(config);
 const app = express();
+app.use(express.json());
 
-// 使用 raw body 處理 LINE Webhook 驗證
+// 預設翻譯語言（可被 /to 指令更改）
+const userLangMap = {};
+
 app.post("/webhook", express.raw({ type: "*/*" }), line.middleware(config), async (req, res) => {
   const events = req.body.events;
   for (let event of events) {
     if (event.type === "message" && event.message.type === "text") {
-      const text = event.message.text;
+      const text = event.message.text.trim();
       const userId = event.source.userId;
-      const [cmd, ...msgParts] = text.split(" ");
-      const lang = cmd.replace("/", "").trim();
 
       // 📘 支援語言列表
       const allowedLangs = [
@@ -38,13 +39,9 @@ app.post("/webhook", express.raw({ type: "*/*" }), line.middleware(config), asyn
         "nl", "ru", "id", "vi", "ar", "hi"
       ];
 
-      if (cmd === "/help") {
-        const helpMessage = `🤖 使用說明：
-請輸入「/語言代碼 要翻譯的文字」，例如：
-/ja 今天天氣真好
-
-✅ 支援語言指令如下：
-${allowedLangs.map(code => `/${code}`).join(" ")}`;
+      // 指令：/help
+      if (text === "/help") {
+        const helpMessage = `🤖 使用說明：\n請直接輸入想翻譯的句子，我會幫你翻成預設語言（預設英文）\n\n📌 指令：\n/to 語言代碼 👉 設定翻譯語言，例如 /to ja\n/help 👉 查看說明與語言列表\n\n✅ 支援語言代碼：\n${allowedLangs.map(code => `/${code}`).join(" ")}`;
         await client.replyMessage(event.replyToken, {
           type: "text",
           text: helpMessage
@@ -52,18 +49,48 @@ ${allowedLangs.map(code => `/${code}`).join(" ")}`;
         continue;
       }
 
-      if (!allowedLangs.includes(lang)) {
+      // 指令：/to ja
+      if (text.startsWith("/to ")) {
+        const newLang = text.replace("/to", "").trim();
+        if (allowedLangs.includes(newLang)) {
+          userLangMap[userId] = newLang;
+          await client.replyMessage(event.replyToken, {
+            type: "text",
+            text: `✅ 已設定預設翻譯語言為：${newLang}`
+          });
+        } else {
+          await client.replyMessage(event.replyToken, {
+            type: "text",
+            text: "❗ 語言代碼不正確，請輸入 /help 查看支援語言"
+          });
+        }
+        continue;
+      }
+
+      // 若不是指令，判斷是否有設定語言
+      if (!userLangMap[userId]) {
         await client.replyMessage(event.replyToken, {
           type: "text",
-          text: "❗ 請輸入正確語言代碼，例如：/ja 你好 或輸入 /help 查看支援語言"
+          text: "❗ 請先輸入 /to 語言代碼 例如：/to ja 或輸入 /help 查看支援語言"
         });
         continue;
       }
 
-      const msg = msgParts.join(" ").trim();
-      if (!msg) continue;
+      // 自動翻譯處理
+      const targetLang = userLangMap[userId] || "en";
 
       try {
+        const detectLangResp = await axios.post(
+          "https://translation.googleapis.com/language/translate/v2/detect",
+          { q: text },
+          {
+            headers: { "Content-Type": "application/json" },
+            params: { key: process.env.GOOGLE_TRANSLATE_API_KEY }
+          }
+        );
+
+        const sourceLang = detectLangResp.data.data.detections[0][0].language;
+
         const completion = await axios.post(
           "https://api.openai.com/v1/chat/completions",
           {
@@ -71,11 +98,11 @@ ${allowedLangs.map(code => `/${code}`).join(" ")}`;
             messages: [
               {
                 role: "system",
-                content: "你是一個專業翻譯機器人，請將輸入翻譯為 " + lang
+                content: `你是一個專業翻譯機器人，請將以下 ${sourceLang} 語言的句子翻譯成 ${targetLang}`
               },
               {
                 role: "user",
-                content: msg
+                content: text
               }
             ]
           },
@@ -87,22 +114,14 @@ ${allowedLangs.map(code => `/${code}`).join(" ")}`;
         );
 
         const translated = completion.data.choices[0].message.content;
-        try {
-          const audioUrl = `https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&q=${encodeURIComponent(translated)}&tl=${lang}`;
+        const audioUrl = `https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&q=${encodeURIComponent(translated)}&tl=${targetLang}`;
 
-          await client.replyMessage(event.replyToken, {
-            type: "text",
-            text: `${translated}\n🔊 ${audioUrl}`
-          });
-        } catch (err) {
-          console.error("❌ GPT or TTS 錯誤:", err.response?.data || err.message);
-          await client.replyMessage(event.replyToken, {
-            type: "text",
-            text: "⚠️ 翻譯成功，但語音播放失敗，請稍後再試！"
-          });
-        }
+        await client.replyMessage(event.replyToken, {
+          type: "text",
+          text: `${translated}\n🔊 ${audioUrl}`
+        });
       } catch (err) {
-        console.error("❌ GPT or TTS 錯誤:", err.message);
+        console.error("❌ 翻譯錯誤:", err.response?.data || err.message);
         await client.replyMessage(event.replyToken, {
           type: "text",
           text: "⚠️ 翻譯失敗，請稍後再試！"
@@ -113,7 +132,6 @@ ${allowedLangs.map(code => `/${code}`).join(" ")}`;
   res.sendStatus(200);
 });
 
-// 保留 GET / 測試用
 app.get("/", (req, res) => {
   res.send("✅ Bot is running");
 });
