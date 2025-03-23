@@ -179,6 +179,22 @@ ${allowedLangs.map(code => `/${code}`).join(" ")}`;
 
           const translated = completion.data.choices[0].message.content.slice(0, 1800); // 🔧 PATCH：避免超過 Flex 長度限制
           const audioUrl = `https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&q=${encodeURIComponent(translated)}&tl=${targetLang}`;
+          const audioButton = audioUrl.length <= 200
+            ? {
+                type: "button",
+                style: "link",
+                action: {
+                  type: "uri",
+                  label: "🔊 點我播放語音",
+                  uri: audioUrl
+                }
+              }
+            : {
+                type: "text",
+                text: "❗ 語音連結過長，無法播放",
+                size: "sm",
+                color: "#FF5555"
+              };
 
           await client.replyMessage(event.replyToken, {
             type: "flex",
@@ -196,15 +212,7 @@ ${allowedLangs.map(code => `/${code}`).join(" ")}`;
                     size: "md",
                     maxLines: 10
                   },
-                  {
-                    type: "button",
-                    style: "link",
-                    action: {
-                      type: "uri",
-                      label: "🔊 點我播放語音",
-                      uri: audioUrl
-                    }
-                  }
+                  audioButton
                 ]
               }
             }
