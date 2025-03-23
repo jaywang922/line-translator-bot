@@ -24,6 +24,7 @@ const safeReply = async (token, message) => {
     if (!token || typeof token !== "string" || token.length !== 32) return;
     const safeText = typeof message === "string" ? message.trim().slice(0, 4000) : "";
     if (!safeText) return;
+    console.log("⚠️ 傳送訊息:", safeText);
     await client.replyMessage(token, { type: "text", text: safeText });
   } catch (err) {
     console.error("❌ 回覆錯誤:", err.response?.data || err.message);
@@ -34,11 +35,13 @@ app.post("/webhook", line.middleware(config), express.json(), async (req, res) =
   const events = req.body.events || [];
 
   for (const event of events) {
-    if (event.type !== "message" || event.message.type !== "text") continue;
+    if (event.type !== "message" || !event.message || event.message.type !== "text") continue;
 
-    const text = event.message.text.trim();
+    const text = event.message.text?.trim();
     const userId = event.source.userId;
     const replyToken = event.replyToken;
+
+    if (!text) continue;
 
     if (text === "/help") {
       return safeReply(replyToken, `🧭 使用方式：\n1️⃣ 輸入 /語言代碼 要翻譯的內容\n例如：/ja 今天天氣很好\n2️⃣ 或先輸入 /語言代碼，再單獨輸入文字即可\n✅ 支援語言：${allowedLangs.map(l => '/' + l).join(' ')}`);
@@ -59,6 +62,7 @@ app.post("/webhook", line.middleware(config), express.json(), async (req, res) =
 
     const currentLang = userLangMap[userId];
     const prompt = message || text;
+
     if (!currentLang || !prompt || prompt.startsWith("/")) return;
 
     try {
