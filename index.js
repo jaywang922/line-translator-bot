@@ -17,7 +17,7 @@ const allowedLangs = [
   "it", "nl", "ru", "id", "vi", "pt", "ms"
 ];
 
-const allowedUsers = ["你的_userId_請填入"];
+const allowedUsers = ["U1eac7319879549c0d6cf9ee5a5062f65"];
 
 const safeReply = async (token, message) => {
   try {
