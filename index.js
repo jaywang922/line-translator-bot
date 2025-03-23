@@ -127,7 +127,8 @@ app.post("/webhook", line.middleware(config), express.json(), async (req, res) =
       });
 
       const translated = completion.data.choices[0].message.content;
-      const audioUrl = `https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&q=${encodeURIComponent(translated)}&tl=${targetLang}`;
+      const cleanText = translated.replace(/\n/g, " ").slice(0, 200);
+      const audioUrl = `https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&q=${encodeURIComponent(cleanText)}&tl=${targetLang}`;
 
       await safeReply(replyToken, `${translated}\n🔊 ${audioUrl}`);
     } catch (err) {
