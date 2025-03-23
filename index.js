@@ -171,8 +171,32 @@ ${allowedLangs.map(code => `/${code}`).join(" ")}`;
           const audioUrl = `https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&q=${encodeURIComponent(translated)}&tl=${targetLang}`;
 
           await client.replyMessage(event.replyToken, {
-            type: "text",
-            text: `${translated}\n🔊 [點我播放語音](${audioUrl})`
+            type: "flex",
+            altText: "翻譯結果",
+            contents: {
+              type: "bubble",
+              body: {
+                type: "box",
+                layout: "vertical",
+                contents: [
+                  {
+                    type: "text",
+                    text: translated,
+                    wrap: true,
+                    size: "md"
+                  },
+                  {
+                    type: "button",
+                    style: "link",
+                    action: {
+                      type: "uri",
+                      label: "🔊 點我播放語音",
+                      uri: audioUrl
+                    }
+                  }
+                ]
+              }
+            }
           });
         } catch (err) {
           console.error("❌ 翻譯錯誤:", err.response?.data || err.message);
