@@ -28,7 +28,7 @@ const safeReply = async (token, message) => {
       return;
     }
 
-    const safeText = typeof message === "string" ? message.trim().slice(0, 4000) : "";
+    const safeText = typeof message === "string" ? message.trim().slice(0, 4000) : JSON.stringify(message).slice(0, 4000);
     if (!safeText) {
       console.warn("❗ 無效的訊息：", message);
       return;
@@ -77,7 +77,10 @@ app.post("/webhook", line.middleware(config), express.json(), async (req, res) =
           headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
         });
 
-        const replyText = res.data.choices[0].message.content;
+        let replyText = res.data.choices[0].message.content;
+        if (typeof replyText !== "string") replyText = JSON.stringify(replyText);
+        replyText = replyText.trim().slice(0, 4000);
+
         return safeReply(replyToken, `✅ 測試成功：\n${testPrompt} → ${replyText}`);
       } catch (err) {
         console.error("❌ 測試翻譯錯誤:", err.response?.data || err.message);
@@ -103,8 +106,11 @@ app.post("/webhook", line.middleware(config), express.json(), async (req, res) =
           headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
         });
 
-        const replyText = res.data.choices[0].message.content;
-        await safeReply(replyToken, replyText);
+        let replyText = res.data.choices[0].message.content;
+        if (typeof replyText !== "string") replyText = JSON.stringify(replyText);
+        replyText = replyText.trim().slice(0, 4000);
+
+        await safeReply(replyToken, replyText || "⚠️ 翻譯結果為空，請稍後再試");
       } catch (err) {
         console.error("❌ 翻譯錯誤:", err.response?.data || err.message);
         await safeReply(replyToken, "⚠️ 翻譯失敗，請稍後再試");
