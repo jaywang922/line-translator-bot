@@ -56,7 +56,7 @@ app.post("/webhook", line.middleware(config), express.json(), async (req, res) =
   for (const event of events) {
     const now = Date.now();
     if (now - event.timestamp > 3000) {
-      console.warn("🕒 略過過期事件：", new Date(event.timestamp).toISOString());
+      
       continue;
     }
     if (event.type !== "message" || !event.message || event.message.type !== "text") continue;
