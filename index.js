@@ -73,8 +73,7 @@ app.post("/webhook", line.middleware(config), express.json(), async (req, res) =
       if (msg) {
         userLangMap[userId] = langFromCmd;
       } else {
-        userLangMap[userId] = langFromCmd;
-        return reply(`✅ 已設定語言為：${langFromCmd}`);
+        return reply("❗ 請輸入正確的翻譯內容，例如：/ja 你好 或輸入 /help 查看說明");
       }
     }
 
@@ -115,7 +114,7 @@ app.post("/webhook", line.middleware(config), express.json(), async (req, res) =
     if (targetLang === "cn") targetLang = "zh-CN";
 
     const prompt = msg || text;
-    if (!prompt || prompt.startsWith("/")) continue; // 防止空翻譯或語法錯誤
+    if (!prompt || prompt.startsWith("/")) continue;
 
     try {
       const completion = await axios.post("https://api.openai.com/v1/chat/completions", {
