@@ -38,7 +38,9 @@ const safeReply = async (token, message) => {
     }
 
     console.log("⚠️ 傳送訊息:", safeText);
-    await client.replyMessage(token, { type: "text", text: safeText });
+    await client.replyMessage(token, { type: "text", text: safeText }).catch(err => {
+      console.error("❌ LINE 回覆錯誤（fallback）:", err.response?.data || err.message);
+    });
   } catch (err) {
     console.error("❌ 回覆錯誤:", {
       status: err.response?.status,
