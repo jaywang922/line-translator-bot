@@ -76,8 +76,9 @@ app.post("/webhook",
           continue;
         }
 
-        if (text === "/multi") {
-          const targetLangs = ["en", "ja", "ko", "th", "vi", "id", "ml"];
+        if (text.startsWith("/multi ")) {
+          const content = text.replace("/multi", "").trim();
+          const targetLangs = ["en", "ja", "ko", "th", "vi", "id", "ms"];
           const results = [];
 
           for (const lang of targetLangs) {
@@ -93,7 +94,7 @@ app.post("/webhook",
                     },
                     {
                       role: "user",
-                      content: text
+                      content
                     }
                   ]
                 },
