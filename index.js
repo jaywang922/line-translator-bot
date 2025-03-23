@@ -41,11 +41,7 @@ app.post("/webhook", line.middleware(config), express.json(), async (req, res) =
 
     const reply = async (msg) => {
       try {
-        if (
-          !event.replyToken ||
-          typeof event.replyToken !== "string" ||
-          event.replyToken.length !== 32
-        ) {
+        if (!event.replyToken || typeof event.replyToken !== "string" || event.replyToken.length !== 32) {
           console.warn("⚠️ 無效的 replyToken，略過回覆");
           return;
         }
@@ -105,7 +101,19 @@ app.post("/webhook", line.middleware(config), express.json(), async (req, res) =
       return reply(results.join("\n"));
     }
 
-    if (!userLangMap[userId]) {
+    const [langCmd, ...contentParts] = text.trim().split(" ");
+    const shortLang = langCmd.startsWith("/") ? langCmd.substring(1) : null;
+    const content = contentParts.join(" ").trim();
+
+    if (shortLang && allowedLangs.includes(shortLang)) {
+      userLangMap[userId] = shortLang;
+      if (!content) {
+        return reply(`✅ 已設定語言為：${shortLang}`);
+      }
+    }
+
+    const targetLangRaw = userLangMap[userId];
+    if (!targetLangRaw) {
       if (!userNotifiedMap[userId]) {
         userNotifiedMap[userId] = true;
         await reply("👋 請先輸入 /語言代碼 或 /help 查看用法，例如：/ja 你好");
@@ -113,7 +121,7 @@ app.post("/webhook", line.middleware(config), express.json(), async (req, res) =
       continue;
     }
 
-    let targetLang = userLangMap[userId];
+    let targetLang = targetLangRaw;
     if (targetLang === "tw") targetLang = "zh-TW";
     if (targetLang === "cn") targetLang = "zh-CN";
 
@@ -122,7 +130,7 @@ app.post("/webhook", line.middleware(config), express.json(), async (req, res) =
         model: "gpt-3.5-turbo",
         messages: [
           { role: "system", content: `請翻譯為 ${targetLang}` },
-          { role: "user", content: msg || text },
+          { role: "user", content: content || text },
         ],
       }, {
         headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
