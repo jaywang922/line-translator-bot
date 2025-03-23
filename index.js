@@ -17,6 +17,8 @@ const allowedLangs = [
   "it", "nl", "ru", "id", "vi", "pt", "ms"
 ];
 
+const allowedUsers = ["你的_userId_請填入"];
+
 const safeReply = async (token, message) => {
   try {
     console.log("🟡 safeReply called");
@@ -54,8 +56,20 @@ app.post("/webhook", line.middleware(config), express.json(), async (req, res) =
 
     const text = event.message.text?.trim();
     const replyToken = event.replyToken;
+    const userId = event.source.userId;
+    console.log("👤 使用者:", userId, "說了:", text);
+
+    if (!allowedUsers.includes(userId)) {
+      console.warn("⛔ 非授權使用者:", userId);
+      continue;
+    }
 
     if (!text) continue;
+
+    // /whoami 指令
+    if (text === "/whoami") {
+      return safeReply(replyToken, `🆔 你的 userId 是：${userId}`);
+    }
 
     // /help 指令
     if (text === "/help") {
