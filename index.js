@@ -53,12 +53,13 @@ app.post("/webhook",
 
         if (text === "/help") {
           const helpMessage = `🤖 使用說明：
-請直接輸入想翻譯的句子，若尚未設定語言，會提示您設定。
+請直接輸入您想翻譯的句子，例如：「我想吃雞蛋」
+若尚未設定語言，機器人會提示您輸入 /to 指令來設定。
 
-📌 指令：
+📌 指令說明：
 /to 語言代碼 👉 設定預設翻譯語言，例如 /to ja（翻成日文）
 /multi 👉 同時翻譯成多國語言
-/help 👉 查看說明與語言列表
+/help 👉 查看使用說明與所有語言代碼
 
 ✅ 支援語言代碼：
 ${allowedLangs.map(code => `/${code}`).join(" ")}`;
@@ -88,7 +89,7 @@ ${allowedLangs.map(code => `/${code}`).join(" ")}`;
 
         if (text.startsWith("/multi ")) {
           const content = text.replace("/multi", "").trim();
-          const targetLangs = ["en", "tw", "ja", "ko", "th", "vi", "id", "my"];
+          const targetLangs = ["en", "tw", "ja", "ko", "th", "vi", "id"];
           const results = [];
 
           for (const lang of targetLangs) {
@@ -167,9 +168,11 @@ ${allowedLangs.map(code => `/${code}`).join(" ")}`;
           );
 
           const translated = completion.data.choices[0].message.content;
+          const audioUrl = `https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&q=${encodeURIComponent(translated)}&tl=${targetLang}`;
+
           await client.replyMessage(event.replyToken, {
             type: "text",
-            text: `${translated}\n🔊 點我播放語音` // ✅ 簡短提示語音播放
+            text: `${translated}\n🔊 [點我播放語音](${audioUrl})`
           });
         } catch (err) {
           console.error("❌ 翻譯錯誤:", err.response?.data || err.message);
