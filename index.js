@@ -41,16 +41,19 @@ app.post("/webhook", line.middleware(config), express.json(), async (req, res) =
     const reply = (msg) => client.replyMessage(event.replyToken, { type: "text", text: msg });
 
     if (text === "/help") {
-      return reply(`🤖 使用說明：\n1️⃣ 輸入「/to 語言代碼」設定翻譯語言，例如：/to ja\n2️⃣ 接著輸入想翻譯的內容，系統會自動翻譯並附上語音播放連結\n3️⃣ 若要一次翻成多國語言，請使用 /multi 例如：/multi 我肚子餓了\n✅ 支援語言代碼：\n${allowedLangs.map(l => '/' + l).join(' ')}`);
+      return reply(`🤖 使用說明：\n1️⃣ 輸入「/語言代碼 翻譯內容」，例如：/ja 今天天氣真好\n2️⃣ 或先輸入「/語言代碼」設定，再單獨輸入文字自動翻譯\n3️⃣ 若要一次翻成多國語言，請使用 /multi 例如：/multi 我肚子餓了\n✅ 支援語言代碼：\n${allowedLangs.map(l => '/' + l).join(' ')}`);
     }
 
-    if (text.startsWith("/to ")) {
-      const lang = text.split(" ")[1];
-      if (allowedLangs.includes(lang)) {
-        userLangMap[userId] = lang;
-        return reply(`✅ 已設定語言為：${lang}`);
+    const [cmd, ...rest] = text.split(" ");
+    const maybeLang = cmd.replace("/", "");
+    const msg = rest.join(" ").trim();
+
+    if (allowedLangs.includes(maybeLang)) {
+      if (msg) {
+        userLangMap[userId] = maybeLang;
       } else {
-        return reply("❗ 語言代碼錯誤，請輸入 /help 查看支援語言");
+        userLangMap[userId] = maybeLang;
+        return reply(`✅ 已設定語言為：${maybeLang}`);
       }
     }
 
@@ -78,7 +81,7 @@ app.post("/webhook", line.middleware(config), express.json(), async (req, res) =
     if (!userLangMap[userId]) {
       if (!userNotifiedMap[userId]) {
         userNotifiedMap[userId] = true;
-        await reply("👋 請先輸入 /to 語言代碼，例如：/to ja 或輸入 /help 查看用法");
+        await reply("👋 請先輸入 /語言代碼 或 /help 查看用法，例如：/ja 你好");
       }
       continue;
     }
@@ -92,7 +95,7 @@ app.post("/webhook", line.middleware(config), express.json(), async (req, res) =
         model: "gpt-3.5-turbo",
         messages: [
           { role: "system", content: `請翻譯為 ${targetLang}` },
-          { role: "user", content: text },
+          { role: "user", content: msg || text },
         ],
       }, {
         headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
