@@ -33,7 +33,6 @@ app.post("/webhook",
         const text = event.message.text.trim();
         const userId = event.source.userId;
 
-        // 📘 支援語言列表（ISO 639-1 標準）
         const allowedLangs = [
           "af", "am", "ar", "az", "be", "bg", "bn", "bs", "ca", "ceb",
           "co", "cs", "cy", "da", "de", "el", "en", "eo", "es", "et", "eu",
@@ -177,7 +176,7 @@ ${allowedLangs.map(code => `/${code}`).join(" ")}`;
             }
           );
 
-          const translated = completion.data.choices[0].message.content.slice(0, 1800); // 🔧 PATCH：避免超過 Flex 長度限制
+          const translated = completion.data.choices[0].message.content.slice(0, 1800);
           const audioUrl = `https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&q=${encodeURIComponent(translated)}&tl=${targetLang}`;
 
           await client.replyMessage(event.replyToken, {
