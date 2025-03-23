@@ -23,12 +23,13 @@ const safeReply = async (token, message) => {
     console.log("🔑 token:", token);
     console.log("💬 message:", message);
 
-    if (!token || typeof token !== "string") {
-      console.warn("❗ 無效的 token：", token);
+    if (!token || typeof token !== "string" || token.length < 10 || token.length > 50) {
+      console.warn("❗ 略過不合法 replyToken：", token);
       return;
     }
 
-    const safeText = typeof message === "string" ? message.trim().slice(0, 4000) : JSON.stringify(message).slice(0, 4000);
+    let safeText = typeof message === "string" ? message.trim() : JSON.stringify(message);
+    safeText = safeText.slice(0, 4000);
     if (!safeText) {
       console.warn("❗ 無效的訊息：", message);
       return;
