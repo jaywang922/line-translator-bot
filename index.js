@@ -73,16 +73,16 @@ app.post("/webhook", line.middleware(config), express.json(), async (req, res) =
     const msg = msgParts.join(" ").trim();
 
     if (allowedLangs.includes(langFromCmd)) {
-      if (msg) {
-        userLangMap[userId] = langFromCmd;
-      } else {
+      if (!msg) {
         return safeReply(replyToken, "❗ 請輸入正確的翻譯內容，例如：/ja 你好 或輸入 /help 查看說明");
+      } else {
+        userLangMap[userId] = langFromCmd;
       }
     }
 
     if (text.startsWith("/multi ")) {
       const input = text.replace("/multi", "").trim();
-      if (!input) return;
+      if (!input) return safeReply(replyToken, "❗ 請輸入要翻譯的內容，例如：/multi 你好");
 
       const results = await Promise.all(multiLangs.map(async (lang) => {
         try {
