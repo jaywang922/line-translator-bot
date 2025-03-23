@@ -30,6 +30,26 @@ const multiLangs = ["en", "tw", "ja", "ko", "th", "vi", "id"];
 const userLangMap = {};
 const userNotifiedMap = {};
 
+const safeReply = async (token, message) => {
+  try {
+    if (!token || typeof token !== "string" || token.length !== 32) {
+      console.warn("⚠️ 無效的 replyToken，略過回覆");
+      return;
+    }
+    const safeText = typeof message === "string" ? message.trim().slice(0, 4000) : "";
+    if (!safeText) {
+      console.warn("⚠️ 無回覆內容或格式錯誤，略過回覆");
+      return;
+    }
+    await client.replyMessage(token, {
+      type: "text",
+      text: safeText,
+    });
+  } catch (err) {
+    console.error("❌ 回覆錯誤:", err.response?.data || err.message);
+  }
+};
+
 app.post("/webhook", line.middleware(config), express.json(), async (req, res) => {
   const events = req.body.events || [];
 
@@ -38,42 +58,21 @@ app.post("/webhook", line.middleware(config), express.json(), async (req, res) =
 
     const text = event.message.text.trim();
     const userId = event.source.userId;
-
-    const reply = async (msg) => {
-      try {
-        if (!event.replyToken || typeof event.replyToken !== "string" || event.replyToken.length !== 32) {
-          console.warn("⚠️ 無效的 replyToken，略過回覆");
-          return;
-        }
-
-        const safeText = typeof msg === "string" ? msg.trim().slice(0, 4000) : "";
-        if (!safeText) {
-          console.warn("⚠️ 無回覆內容或格式錯誤，略過回覆");
-          return;
-        }
-
-        await client.replyMessage(event.replyToken, {
-          type: "text",
-          text: safeText,
-        });
-      } catch (err) {
-        console.error("❌ 回覆錯誤:", err.response?.data || err.message);
-      }
-    };
-
-    if (text === "/help") {
-      return await reply(`🤖 使用說明：\n1️⃣ 輸入「/語言代碼 翻譯內容」，例如：/ja 今天天氣真好\n2️⃣ 或先輸入「/語言代碼」設定，再單獨輸入文字自動翻譯\n3️⃣ 若要一次翻成多國語言，請使用 /multi 例如：/multi 我肚子餓了\n✅ 支援語言代碼：\n${allowedLangs.map(l => '/' + l).join(' ')}`);
-    }
+    const replyToken = event.replyToken;
 
     const [cmd, ...msgParts] = text.split(" ");
     const langFromCmd = cmd.startsWith("/") ? cmd.slice(1) : null;
     const msg = msgParts.join(" ").trim();
 
+    if (text === "/help") {
+      return safeReply(replyToken, `🤖 使用說明：\n1️⃣ 輸入「/語言代碼 翻譯內容」，例如：/ja 今天天氣真好\n2️⃣ 或先輸入「/語言代碼」設定，再單獨輸入文字自動翻譯\n3️⃣ 若要一次翻成多國語言，請使用 /multi 例如：/multi 我肚子餓了\n✅ 支援語言代碼：\n${allowedLangs.map(l => '/' + l).join(' ')}`);
+    }
+
     if (allowedLangs.includes(langFromCmd)) {
       if (msg) {
         userLangMap[userId] = langFromCmd;
       } else {
-        return await reply("❗ 請輸入正確的翻譯內容，例如：/ja 你好 或輸入 /help 查看說明");
+        return safeReply(replyToken, "❗ 請輸入正確的翻譯內容，例如：/ja 你好 或輸入 /help 查看說明");
       }
     }
 
@@ -97,14 +96,14 @@ app.post("/webhook", line.middleware(config), express.json(), async (req, res) =
           return `❌ ${lang}: 失敗`;
         }
       }));
-      return await reply(results.join("\n"));
+      return safeReply(replyToken, results.join("\n"));
     }
 
     const targetLangRaw = userLangMap[userId];
     if (!targetLangRaw) {
       if (!userNotifiedMap[userId]) {
         userNotifiedMap[userId] = true;
-        await reply("👋 請先輸入 /語言代碼 或 /help 查看用法，例如：/ja 你好");
+        await safeReply(replyToken, "👋 請先輸入 /語言代碼 或 /help 查看用法，例如：/ja 你好");
       }
       continue;
     }
@@ -128,16 +127,12 @@ app.post("/webhook", line.middleware(config), express.json(), async (req, res) =
       });
 
       const translated = completion.data.choices[0].message.content;
-      if (!translated || typeof translated !== "string" || translated.trim() === "") {
-        console.warn("⚠️ 翻譯結果為空，略過回覆");
-        continue;
-      }
-
       const audioUrl = `https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&q=${encodeURIComponent(translated)}&tl=${targetLang}`;
-      await reply(`${translated}\n🔊 ${audioUrl}`);
+
+      await safeReply(replyToken, `${translated}\n🔊 ${audioUrl}`);
     } catch (err) {
       console.error("❌ 翻譯錯誤:", err.response?.data || err.message);
-      await reply("⚠️ 翻譯失敗，請稍後再試");
+      await safeReply(replyToken, "⚠️ 翻譯失敗，請稍後再試");
     }
   }
   res.sendStatus(200);
