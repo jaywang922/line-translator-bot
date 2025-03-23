@@ -74,7 +74,8 @@ app.post("/webhook", line.middleware(config), express.json(), async (req, res) =
 
     if (allowedLangs.includes(langFromCmd)) {
       if (!msg) {
-        return safeReply(replyToken, "❗ 請輸入正確的翻譯內容，例如：/ja 你好 或輸入 /help 查看說明");
+        userLangMap[userId] = langFromCmd; // 還是先記起來
+        return safeReply(replyToken, "⚠️ 請輸入正確的翻譯內容，例如：/ja 你好 或輸入 /help 查看說明");
       } else {
         userLangMap[userId] = langFromCmd;
       }
@@ -131,10 +132,31 @@ app.post("/webhook", line.middleware(config), express.json(), async (req, res) =
       });
 
       const translated = completion.data.choices[0].message.content;
-      const cleanText = translated.replace(/\n/g, " ").slice(0, 200);
-      const audioUrl = `https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&q=${encodeURIComponent(cleanText)}&tl=${targetLang}`;
+      const cleanText = translated.replace(/\n/g, " ").trim().slice(0, 200);
 
-      await safeReply(replyToken, `${translated}\n🔊 ${audioUrl}`);
+      if (!cleanText || cleanText.length < 2 || /[\u4e00-\u9fa5\w]/.test(cleanText) === false) {
+        await safeReply(replyToken, `⚠️ 翻譯結果異常，無法產生語音：\n${translated}`);
+        continue;
+      }
+
+      const ttsResp = await axios.post(
+        "https://api.openai.com/v1/audio/speech",
+        {
+          model: "tts-1",
+          voice: "nova",
+          input: cleanText,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+          },
+          responseType: "arraybuffer",
+        }
+      );
+
+      const base64Audio = Buffer.from(ttsResp.data).toString("base64");
+      const audioUrl = `data:audio/mpeg;base64,${base64Audio}`;
+      await safeReply(replyToken, `${translated}\n🔊 點我播放語音：${audioUrl}`);
     } catch (err) {
       console.error("❌ 翻譯錯誤:", err.response?.data || err.message);
       await safeReply(replyToken, "⚠️ 翻譯失敗，請稍後再試");
