@@ -41,18 +41,26 @@ app.post("/webhook", line.middleware(config), express.json(), async (req, res) =
 
     const reply = async (msg) => {
       try {
-        if (!event.replyToken || typeof event.replyToken !== "string") {
+        if (
+          !event.replyToken ||
+          typeof event.replyToken !== "string" ||
+          event.replyToken.length !== 32
+        ) {
           console.warn("⚠️ 無效的 replyToken，略過回覆");
           return;
         }
 
-        const safeMsg = typeof msg === "string" && msg.length > 4000
-          ? msg.slice(0, 4000) + "..."
-          : msg;
+        const text = typeof msg === "string" ? msg.trim() : "";
+        const safeText = text.length > 4000 ? text.slice(0, 4000) + "..." : text;
+
+        if (!safeText) {
+          console.warn("⚠️ 無回覆內容，略過回覆");
+          return;
+        }
 
         await client.replyMessage(event.replyToken, {
           type: "text",
-          text: safeMsg || "⚠️ 無內容可回覆"
+          text: safeText,
         });
       } catch (err) {
         console.error("❌ 回覆錯誤:", err.response?.data || err.message);
