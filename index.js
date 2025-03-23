@@ -59,6 +59,7 @@ app.post("/webhook",
 📌 指令說明：
 /to 語言代碼 👉 設定預設翻譯語言，例如 /to ja（翻成日文）
 /multi 👉 同時翻譯成多國語言
+/debug 👉 查看目前設定語言
 /help 👉 查看使用說明與所有語言代碼
 
 ✅ 支援語言代碼：
@@ -66,6 +67,15 @@ ${allowedLangs.map(code => `/${code}`).join(" ")}`;
           await client.replyMessage(event.replyToken, {
             type: "text",
             text: helpMessage
+          });
+          continue;
+        }
+
+        if (text === "/debug") {
+          const lang = userLangMap[userId] || "尚未設定";
+          await client.replyMessage(event.replyToken, {
+            type: "text",
+            text: `🔧 目前語言設定為：${lang}`
           });
           continue;
         }
@@ -167,7 +177,7 @@ ${allowedLangs.map(code => `/${code}`).join(" ")}`;
             }
           );
 
-          const translated = completion.data.choices[0].message.content;
+          const translated = completion.data.choices[0].message.content.slice(0, 1800); // 🔧 PATCH：避免超過 Flex 長度限制
           const audioUrl = `https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&q=${encodeURIComponent(translated)}&tl=${targetLang}`;
 
           await client.replyMessage(event.replyToken, {
@@ -183,7 +193,8 @@ ${allowedLangs.map(code => `/${code}`).join(" ")}`;
                     type: "text",
                     text: translated,
                     wrap: true,
-                    size: "md"
+                    size: "md",
+                    maxLines: 10
                   },
                   {
                     type: "button",
