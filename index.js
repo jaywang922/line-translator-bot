@@ -19,6 +19,10 @@ const allowedLangs = [
 
 const safeReply = async (token, message) => {
   try {
+    console.log("🟡 safeReply called");
+    console.log("🔑 token:", token);
+    console.log("💬 message:", message);
+
     if (!token || typeof token !== "string" || token.length !== 32) {
       console.warn("❗ 無效的 token：", token);
       return;
@@ -33,7 +37,11 @@ const safeReply = async (token, message) => {
     console.log("⚠️ 傳送訊息:", safeText);
     await client.replyMessage(token, { type: "text", text: safeText });
   } catch (err) {
-    console.error("❌ 回覆錯誤:", err.response?.data || err.message);
+    console.error("❌ 回覆錯誤:", {
+      status: err.response?.status,
+      data: err.response?.data,
+      message: err.message,
+    });
   }
 };
 
