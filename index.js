@@ -112,7 +112,8 @@ app.post("/webhook", line.middleware(config), express.json(), async (req, res) =
           });
           let replyText = res.data.choices[0].message.content;
           replyText = typeof replyText === "string" ? replyText.trim().slice(0, 4000) : JSON.stringify(replyText);
-          await safeReply(replyToken, `🌐 ${langNameMap[lang]}：\n${replyText}`);
+          await client.pushMessage(userId, { type: "text", text: `🌐 ${langNameMap[lang]}：
+${replyText}` });
         } catch (err) {
           console.error("❌ 多語翻譯錯誤:", err.response?.data || err.message);
           await safeReply(replyToken, `⚠️ ${lang} 翻譯失敗`);
@@ -123,7 +124,26 @@ app.post("/webhook", line.middleware(config), express.json(), async (req, res) =
 
     // 其他既有指令與單語翻譯邏輯保留不變...
 
-    return safeReply(replyToken, `🧭 使用方式錯誤：\n請輸入 /語言 文字，例如：/ja 今天天氣很好\n或 /ja 5min 開啟持續翻譯模式\n\n輸入 /help 查看完整說明`);
+    return safeReply(replyToken, `🧭 使用方式說明：
+
+1️⃣ 單句翻譯：
+   /語言代碼 要翻譯的內容
+   例如：/ja 今天天氣很好
+
+2️⃣ 單一語言持續翻譯：
+   /語言代碼 Xmin
+   例如：/en 10min 表示接下來 10 分鐘都翻譯為英文
+
+3️⃣ 多語翻譯（最多 4 種）：
+   /multi 語言1,語言2,... [Xmin]
+   例如：/multi en,ja,ko 5min
+   ※ 可用逗號或空白分隔
+
+4️⃣ 停止翻譯模式：
+   /stop
+
+✅ 支援語言代碼：
+${allowedLangs.map(l => '/' + l).join(' ')}`);
   }
   res.sendStatus(200);
 });
