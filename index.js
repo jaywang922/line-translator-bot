@@ -122,7 +122,8 @@ app.post("/webhook", line.middleware(config), express.json(), async (req, res) =
       await safeReply(replyToken, `⌛ 持續翻譯時間已結束，停止翻譯 ${langNameMap[session.lang]}`);
     }
   }
-  continue;
+  return;
+}
 if (text === "/stop") {
       if (userSession[userId]) {
         delete userSession[userId];
