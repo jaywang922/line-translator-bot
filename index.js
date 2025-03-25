@@ -17,27 +17,12 @@ const allowedLangs = [
   "it", "nl", "ru", "id", "vi", "pt", "ms"
 ];
 
-const userSession = {}; // 用來記錄使用者的自動翻譯狀態
-
-// 單語言快速翻譯用
-const langAliasMap = {
-  "tw": "zh-TW",
-  "cn": "zh-CN"
-};
-
-const isSingleLangCmd = (text) => {
-  const [cmd, ...rest] = text.trim().split(" ");
-  const rawLang = cmd.startsWith("/") ? cmd.slice(1) : null;
-  const lang = langAliasMap[rawLang] || rawLang;
-  return allowedLangs.includes(lang) && rest.length > 0;
-}; // 用來記錄使用者的自動翻譯狀態
-
 const langNameMap = {
   "en": "英文",
   "ja": "日文",
   "ko": "韓文",
-  "tw": "繁體中文",
-  "cn": "簡體中文",
+  "zh-TW": "繁體中文",
+  "zh-CN": "簡體中文",
   "fr": "法文",
   "de": "德文",
   "es": "西班牙文",
@@ -49,6 +34,22 @@ const langNameMap = {
   "vi": "越南文",
   "pt": "葡萄牙文",
   "ms": "馬來文"
+};
+
+const langAliasMap = {
+  "tw": "zh-TW",
+  "cn": "zh-CN",
+  "zh": "zh-TW",
+  "jp": "ja"
+};
+
+const userSession = {}; // 記錄使用者持續翻譯狀態
+
+const isSingleLangCmd = (text) => {
+  const [cmd, ...rest] = text.trim().split(" ");
+  const rawLang = cmd.startsWith("/") ? cmd.slice(1) : null;
+  const lang = langAliasMap[rawLang] || rawLang;
+  return allowedLangs.includes(lang) && rest.length > 0;
 };
 
 const safeReply = async (token, message) => {
@@ -73,9 +74,9 @@ app.post("/webhook", line.middleware(config), express.json(), async (req, res) =
     const text = event.message.text?.trim();
     const replyToken = event.replyToken;
     const userId = event.source.userId;
-
     if (!text) continue;
 
+    // 🛑 停止翻譯
     if (text === "/stop") {
       if (userSession[userId]) {
         delete userSession[userId];
@@ -85,22 +86,26 @@ app.post("/webhook", line.middleware(config), express.json(), async (req, res) =
       }
     }
 
+    // 🔁 啟用多語言持續翻譯
     if (text.startsWith("/multi")) {
-      const match = text.match(/^\/multi\s+([a-zA-Z\-\s,]+)(?:\s+(\d{1,2})min)?$/);
-      if (!match) return safeReply(replyToken, `⚠️ 格式錯誤，請使用：/multi 語言1,語言2 [Xmin]\n例如：/multi en,ja 5min`);
+      let raw = text.replace("/multi", "").trim();
+      let parts = raw.split(/[\s,]+/).filter(Boolean);
+      let durationMin = null;
 
-      const langs = match[1].split(/[,\s]+/).map(s => s.trim()).filter(Boolean);
-      const durationMin = match[2] ? parseInt(match[2]) : null;
+      const last = parts[parts.length - 1];
+      const minMatch = last.match(/^([1-9]|[1-5][0-9]|60)min$/);
+      if (minMatch) {
+        durationMin = parseInt(minMatch[1]);
+        parts.pop();
+      }
 
+      const langs = parts;
       if (langs.length === 0 || langs.length > 4)
         return safeReply(replyToken, "⚠️ 最多只能指定 1～4 種語言");
 
       const invalids = langs.filter(l => !allowedLangs.includes(l));
       if (invalids.length > 0)
         return safeReply(replyToken, `⚠️ 不支援的語言代碼：${invalids.join(", ")}`);
-
-      if (durationMin && (durationMin < 1 || durationMin > 60))
-        return safeReply(replyToken, "⚠️ 時間請設定 1～60 分鐘內");
 
       userSession[userId] = {
         langs,
@@ -110,6 +115,7 @@ app.post("/webhook", line.middleware(config), express.json(), async (req, res) =
       return safeReply(replyToken, `✅ 已啟用多語言翻譯：${langs.map(l => langNameMap[l]).join("、")}${durationMin ? `（持續 ${durationMin} 分鐘）` : ""}`);
     }
 
+    // ⏱ 持續翻譯中
     if (userSession[userId] && (!userSession[userId].until || Date.now() < userSession[userId].until)) {
       const langs = userSession[userId].langs || [userSession[userId].lang];
       for (const lang of langs) {
@@ -125,8 +131,7 @@ app.post("/webhook", line.middleware(config), express.json(), async (req, res) =
           });
           let replyText = res.data.choices[0].message.content;
           replyText = typeof replyText === "string" ? replyText.trim().slice(0, 4000) : JSON.stringify(replyText);
-          await client.pushMessage(userId, { type: "text", text: `🌐 ${langNameMap[lang]}：
-${replyText}` });
+          await client.pushMessage(userId, { type: "text", text: `🌐 ${langNameMap[lang]}：\n${replyText}` });
         } catch (err) {
           console.error("❌ 多語翻譯錯誤:", err.response?.data || err.message);
           await safeReply(replyToken, `⚠️ ${lang} 翻譯失敗`);
@@ -135,7 +140,7 @@ ${replyText}` });
       continue;
     }
 
-    // ✅ 單句翻譯指令（例如 /en 你好）
+    // 💬 單句翻譯
     if (isSingleLangCmd(text)) {
       const [cmd, ...rest] = text.trim().split(" ");
       const rawLang = cmd.slice(1);
@@ -160,6 +165,7 @@ ${replyText}` });
       }
     }
 
+    // ❓ fallback 說明
     return safeReply(replyToken, `🧭 使用方式說明：
 
 1️⃣ 單句翻譯：
@@ -181,32 +187,7 @@ ${replyText}` });
 ✅ 支援語言代碼：
 /en /ja /ko /zh-TW /zh-CN /fr /de /es /th /it /nl /ru /id /vi /pt /ms`);
   }
-  // ✅ 單句翻譯指令（例如 /en 你好）
-    if (isSingleLangCmd(text)) {
-      const [cmd, ...rest] = text.trim().split(" ");
-      const rawLang = cmd.slice(1);
-      const lang = langAliasMap[rawLang] || rawLang;
-      const content = rest.join(" ");
-      try {
-        const res = await axios.post("https://api.openai.com/v1/chat/completions", {
-          model: "gpt-3.5-turbo",
-          messages: [
-            { role: "system", content: `請將使用者的句子翻譯為「${langNameMap[lang]}」的自然用法，並且只回傳翻譯內容，不加註解。` },
-            { role: "user", content: content },
-          ],
-        }, {
-          headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
-        });
-        let replyText = res.data.choices[0].message.content;
-        replyText = typeof replyText === "string" ? replyText.trim().slice(0, 4000) : JSON.stringify(replyText);
-        return safeReply(replyToken, replyText);
-      } catch (err) {
-        console.error("❌ 單句翻譯錯誤:", err.response?.data || err.message);
-        return safeReply(replyToken, "⚠️ 翻譯失敗，請稍後再試");
-      }
-    }
-
-    res.sendStatus(200);
+  res.sendStatus(200);
 });
 
 app.get("/", (_, res) => res.send("✅ Bot is running"));
