@@ -84,14 +84,12 @@ app.post("/webhook", line.middleware(config), express.json(), async (req, res) =
 
     if (!text) continue;
 
-    // 📝 記錄輸入
     console.log("📝 使用者輸入紀錄：", {
       time: new Date(event.timestamp).toISOString(),
       userId,
       message: text
     });
 
-    // /stop 指令
     if (text === "/stop") {
       if (userSession[userId]) {
         delete userSession[userId];
@@ -101,24 +99,14 @@ app.post("/webhook", line.middleware(config), express.json(), async (req, res) =
       }
     }
 
-    // /whoami 指令
     if (text === "/whoami") {
       return safeReply(replyToken, `🆔 你的 userId 是：${userId}`);
     }
 
-    // /help 指令
     if (text === "/help") {
-      return safeReply(replyToken, `🧭 使用方式：
-1️⃣ 輸入 /語言代碼 要翻譯的內容
-例如：/ja 今天天氣很好
-2️⃣ 輸入 /語言代碼 Xmin 可啟用持續翻譯模式
-例如：/en 10min 表示接下來 10 分鐘都翻譯為英文
-3️⃣ 若要中止持續翻譯，請輸入 /stop
-
-✅ 支援語言：${allowedLangs.map(l => '/' + l).join(' ')}`);
+      return safeReply(replyToken, `🧭 使用方式：\n1️⃣ 即時翻譯：/語言代碼 文字\n  例如：/ja 今天天氣很好\n\n2️⃣ 啟用持續翻譯模式：/語言代碼 Xmin\n  例如：/en 10min\n  ✅ 可搭配句子直接翻譯：/en 10min I am hungry\n\n3️⃣ 結束持續翻譯模式：/stop\n4️⃣ 查看自己的 userId：/whoami\n\n✅ 支援語言：${allowedLangs.map(l => '/' + l).join(' ')}`);
     }
 
-    // /test 指令
     if (text === "/test") {
       try {
         const testPrompt = "我好餓";
@@ -145,7 +133,6 @@ app.post("/webhook", line.middleware(config), express.json(), async (req, res) =
       }
     }
 
-    // ✅ 自動翻譯狀態：持續翻譯模式是否啟用
     if (userSession[userId] && Date.now() < userSession[userId].until) {
       const activeLang = userSession[userId].lang;
       try {
@@ -171,7 +158,6 @@ app.post("/webhook", line.middleware(config), express.json(), async (req, res) =
       continue;
     }
 
-    // /語言 Xmin 指令（啟用自動翻譯）
     const [cmd, timeArg, ...msgRest] = text.split(" ");
     const langCode = cmd.startsWith("/") ? cmd.slice(1) : null;
     const minMatch = timeArg?.match(/^(\d{1,2})min$/);
@@ -183,11 +169,37 @@ app.post("/webhook", line.middleware(config), express.json(), async (req, res) =
           lang: langCode,
           until: Date.now() + minutes * 60 * 1000,
         };
-        return safeReply(replyToken, `🕒 已啟動：${minutes} 分鐘內的訊息將自動翻譯為 ${langCode}`);
+
+        const autoTranslateNotice = `🕒 已啟動：${minutes} 分鐘內的訊息將自動翻譯為 ${langNameMap[langCode]}`;
+
+        const immediateMessage = msgRest.join(" ").trim();
+        if (immediateMessage) {
+          try {
+            const res = await axios.post("https://api.openai.com/v1/chat/completions", {
+              model: "gpt-3.5-turbo",
+              messages: [
+                { role: "system", content: `請將使用者的句子翻譯為「${langNameMap[langCode]}」的自然用法，並且只回傳翻譯內容，不加註解。` },
+                { role: "user", content: immediateMessage },
+              ],
+            }, {
+              headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
+            });
+
+            let replyText = res.data.choices[0].message.content;
+            if (typeof replyText !== "string") replyText = JSON.stringify(replyText);
+            replyText = replyText.trim().slice(0, 4000);
+
+            return safeReply(replyToken, `${autoTranslateNotice}\n\n${immediateMessage} → ${replyText}`);
+          } catch (err) {
+            console.error("❌ 初始翻譯錯誤:", err.response?.data || err.message);
+            return safeReply(replyToken, `${autoTranslateNotice}\n⚠️ 初始翻譯失敗`);
+          }
+        } else {
+          return safeReply(replyToken, autoTranslateNotice);
+        }
       }
     }
 
-    // 傳統 /語言 文字 格式
     const [cmd2, ...rest] = text.split(" ");
     const lang2 = cmd2.startsWith("/") ? cmd2.slice(1) : null;
     const message = rest.join(" ").trim();
