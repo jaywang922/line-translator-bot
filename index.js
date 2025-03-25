@@ -19,6 +19,25 @@ const allowedLangs = [
 
 const userSession = {}; // 用來記錄使用者的自動翻譯狀態
 
+const langNameMap = {
+  "en": "英文",
+  "ja": "日文",
+  "ko": "韓文",
+  "zh-TW": "繁體中文",
+  "zh-CN": "簡體中文",
+  "fr": "法文",
+  "de": "德文",
+  "es": "西班牙文",
+  "th": "泰文",
+  "it": "義大利文",
+  "nl": "荷蘭文",
+  "ru": "俄文",
+  "id": "印尼文",
+  "vi": "越南文",
+  "pt": "葡萄牙文",
+  "ms": "馬來文"
+};
+
 const safeReply = async (token, message) => {
   try {
     console.log("🟡 safeReply called");
@@ -133,7 +152,7 @@ app.post("/webhook", line.middleware(config), express.json(), async (req, res) =
         const res = await axios.post("https://api.openai.com/v1/chat/completions", {
           model: "gpt-3.5-turbo",
           messages: [
-            { role: "system", content: `請將使用者的句子翻譯為「${activeLang}語言」的自然用法，並且只回傳翻譯內容，不加註解。` },
+            { role: "system", content: `請將使用者的句子翻譯為「${langNameMap[activeLang]}」的自然用法，並且只回傳翻譯內容，不加註解。` },
             { role: "user", content: text },
           ],
         }, {
@@ -178,7 +197,7 @@ app.post("/webhook", line.middleware(config), express.json(), async (req, res) =
         const res = await axios.post("https://api.openai.com/v1/chat/completions", {
           model: "gpt-3.5-turbo",
           messages: [
-            { role: "system", content: `請將使用者的句子翻譯為「${lang2}語言」的自然用法，並且只回傳翻譯內容，不加註解。` },
+            { role: "system", content: `請將使用者的句子翻譯為「${langNameMap[lang2]}」的自然用法，並且只回傳翻譯內容，不加註解。` },
             { role: "user", content: message },
           ],
         }, {
