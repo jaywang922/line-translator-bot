@@ -133,7 +133,7 @@ app.post("/webhook", line.middleware(config), express.json(), async (req, res) =
         const res = await axios.post("https://api.openai.com/v1/chat/completions", {
           model: "gpt-3.5-turbo",
           messages: [
-            { role: "system", content: `請將以下句子翻譯為 ${activeLang}` },
+            { role: "system", content: `請將使用者的句子翻譯為「${activeLang}語言」的自然用法，並且只回傳翻譯內容，不加註解。` },
             { role: "user", content: text },
           ],
         }, {
@@ -178,7 +178,7 @@ app.post("/webhook", line.middleware(config), express.json(), async (req, res) =
         const res = await axios.post("https://api.openai.com/v1/chat/completions", {
           model: "gpt-3.5-turbo",
           messages: [
-            { role: "system", content: `請將以下句子翻譯為 ${lang2}` },
+            { role: "system", content: `請將使用者的句子翻譯為「${lang2}語言」的自然用法，並且只回傳翻譯內容，不加註解。` },
             { role: "user", content: message },
           ],
         }, {
