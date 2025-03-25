@@ -140,9 +140,8 @@ ${replyText}` });
    ※ 可用逗號或空白分隔
 
 4️⃣ 停止翻譯模式：
-   /stop
+   /stop✅ 支援語言代碼：
 
-✅ 支援語言代碼：
 ${allowedLangs.map(l => '/' + l).join(' ')}`);
   }
   res.sendStatus(200);
