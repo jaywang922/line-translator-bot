@@ -53,11 +53,11 @@ app.post("/webhook", line.middleware(config), express.json(), async (req, res) =
   const events = req.body.events || [];
 
   for (const event of events) {
-    const now = Date.now();
+    // 已宣告 now，無需重複宣告
     if (now - event.timestamp > 3000) continue;
 
-    const userId = event.source.userId;
-    const text = event.message.text?.trim();
+    // 已宣告 userId，無需重複宣告
+    // 已宣告 text，無需重複宣告
 
     // 📝 紀錄使用者輸入資訊
     console.log("📝 使用者輸入紀錄：", {
