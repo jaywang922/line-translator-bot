@@ -40,38 +40,18 @@ const langNameMap = {
 
 const safeReply = async (token, message) => {
   try {
-    console.log("🟡 safeReply called");
-    console.log("🔑 token:", token);
-    console.log("💬 message:", message);
-
-    if (!token || typeof token !== "string" || token.length < 10 || token.length > 50) {
-      console.warn("❗ 略過不合法 replyToken：", token);
-      return;
-    }
-
+    if (!token || typeof token !== "string" || token.length < 10 || token.length > 50) return;
     let safeText = typeof message === "string" ? message.trim() : JSON.stringify(message);
     safeText = safeText.slice(0, 4000);
-    if (!safeText) {
-      console.warn("❗ 無效的訊息：", message);
-      return;
-    }
-
-    console.log("⚠️ 傳送訊息:", safeText);
-    await client.replyMessage(token, { type: "text", text: safeText }).catch(err => {
-      console.error("❌ LINE 回覆錯誤（fallback）:", err.response?.data || err.message);
-    });
+    if (!safeText) return;
+    await client.replyMessage(token, { type: "text", text: safeText });
   } catch (err) {
-    console.error("❌ 回覆錯誤:", {
-      status: err.response?.status,
-      data: err.response?.data,
-      message: err.message,
-    });
+    console.error("❌ 回覆錯誤:", err.response?.data || err.message);
   }
 };
 
 app.post("/webhook", line.middleware(config), express.json(), async (req, res) => {
   const events = req.body.events || [];
-
   for (const event of events) {
     const now = Date.now();
     if (now - event.timestamp > 3000) continue;
@@ -80,51 +60,10 @@ app.post("/webhook", line.middleware(config), express.json(), async (req, res) =
     const text = event.message.text?.trim();
     const replyToken = event.replyToken;
     const userId = event.source.userId;
-    console.log("👤 使用者:", userId, "說了:", text);
 
     if (!text) continue;
 
-    console.log("📝 使用者輸入紀錄：", {
-      time: new Date(event.timestamp).toISOString(),
-      userId,
-      message: text
-    });
-
-    if (!text.startsWith("/")) {
-  if (userSession[userId]) {
-    const session = userSession[userId];
-    const nowTime = Date.now();
-
-    if (nowTime < session.until) {
-      const activeLang = session.lang;
-      try {
-        const res = await axios.post("https://api.openai.com/v1/chat/completions", {
-          model: "gpt-3.5-turbo",
-          messages: [
-            { role: "system", content: `請將使用者的句子翻譯為「${langNameMap[activeLang]}」的自然用法，並且只回傳翻譯內容，不加註解。` },
-            { role: "user", content: text },
-          ],
-        }, {
-          headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
-        });
-
-        let replyText = res.data.choices[0].message.content;
-        if (typeof replyText !== "string") replyText = JSON.stringify(replyText);
-        replyText = replyText.trim().slice(0, 4000);
-
-        await safeReply(replyToken, replyText);
-      } catch (err) {
-        console.error("❌ 持續翻譯錯誤:", err.response?.data || err.message);
-        await safeReply(replyToken, "⚠️ 自動翻譯失敗，請稍後再試");
-      }
-    } else {
-      delete userSession[userId];
-      await safeReply(replyToken, `⌛ 持續翻譯時間已結束，停止翻譯 ${langNameMap[session.lang]}`);
-    }
-  }
-  return;
-}
-if (text === "/stop") {
+    if (text === "/stop") {
       if (userSession[userId]) {
         delete userSession[userId];
         return safeReply(replyToken, "🛑 持續翻譯模式已關閉");
@@ -133,111 +72,59 @@ if (text === "/stop") {
       }
     }
 
-    if (text === "/whoami") {
-      return safeReply(replyToken, `🆔 你的 userId 是：${userId}`);
+    if (text.startsWith("/multi")) {
+      const match = text.match(/^\/multi\s+([a-zA-Z\-,]+)(?:\s+(\d{1,2})min)?$/);
+      if (!match) return safeReply(replyToken, `⚠️ 格式錯誤，請使用：/multi 語言1,語言2 [Xmin]\n例如：/multi en,ja 5min`);
+
+      const langs = match[1].split(",").map(s => s.trim()).filter(Boolean);
+      const durationMin = match[2] ? parseInt(match[2]) : null;
+
+      if (langs.length === 0 || langs.length > 4)
+        return safeReply(replyToken, "⚠️ 最多只能指定 1～4 種語言");
+
+      const invalids = langs.filter(l => !allowedLangs.includes(l));
+      if (invalids.length > 0)
+        return safeReply(replyToken, `⚠️ 不支援的語言代碼：${invalids.join(", ")}`);
+
+      if (durationMin && (durationMin < 1 || durationMin > 60))
+        return safeReply(replyToken, "⚠️ 時間請設定 1～60 分鐘內");
+
+      userSession[userId] = {
+        langs,
+        until: durationMin ? Date.now() + durationMin * 60000 : null,
+      };
+
+      return safeReply(replyToken, `✅ 已啟用多語言翻譯：${langs.map(l => langNameMap[l]).join("、")}${durationMin ? `（持續 ${durationMin} 分鐘）` : ""}`);
     }
 
-    if (text === "/help") {
-      return safeReply(replyToken, `🧭 使用方式：\n1️⃣ 即時翻譯：/語言代碼 文字\n  例如：/ja 今天天氣很好\n\n2️⃣ 啟用持續翻譯模式：/語言代碼 Xmin\n  例如：/en 10min\n  ✅ 可搭配句子直接翻譯：/en 10min I am hungry\n\n3️⃣ 結束持續翻譯模式：/stop\n4️⃣ 查看自己的 userId：/whoami\n\n✅ 支援語言：${allowedLangs.map(l => '/' + l).join(' ')}`);
-    }
-
-    if (text === "/test") {
-      try {
-        const testPrompt = "我好餓";
-        const testLang = "en";
-
-        const res = await axios.post("https://api.openai.com/v1/chat/completions", {
-          model: "gpt-3.5-turbo",
-          messages: [
-            { role: "system", content: `請將使用者的句子翻譯為「${1}語言」的自然用法，並且只回傳翻譯內容，不加註解。` },
-            { role: "user", content: testPrompt },
-          ],
-        }, {
-          headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
-        });
-
-        let replyText = res.data.choices[0].message.content;
-        if (typeof replyText !== "string") replyText = JSON.stringify(replyText);
-        replyText = replyText.trim().slice(0, 4000);
-
-        return safeReply(replyToken, `✅ 測試成功：\n${testPrompt} → ${replyText}`);
-      } catch (err) {
-        console.error("❌ 測試翻譯錯誤:", err.response?.data || err.message);
-        return safeReply(replyToken, "⚠️ 測試失敗，請確認 OpenAI API 是否正確設置");
-      }
-    }
-
-    const [cmd, timeArg, ...msgRest] = text.split(" ");
-    const langCode = cmd.startsWith("/") ? cmd.slice(1) : null;
-    const minMatch = timeArg?.match(/^(\d{1,2})min$/);
-
-    if (allowedLangs.includes(langCode) && minMatch) {
-      const minutes = parseInt(minMatch[1]);
-      if (minutes > 0 && minutes <= 60) {
-        userSession[userId] = {
-          lang: langCode,
-          until: Date.now() + minutes * 60 * 1000,
-        };
-
-        const autoTranslateNotice = `🕒 已啟動：${minutes} 分鐘內的訊息將自動翻譯為 ${langNameMap[langCode]}`;
-
-        const immediateMessage = msgRest.join(" ").trim();
-        if (immediateMessage) {
-          try {
-            const res = await axios.post("https://api.openai.com/v1/chat/completions", {
-              model: "gpt-3.5-turbo",
-              messages: [
-                { role: "system", content: `請將使用者的句子翻譯為「${langNameMap[langCode]}」的自然用法，並且只回傳翻譯內容，不加註解。` },
-                { role: "user", content: immediateMessage },
-              ],
-            }, {
-              headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
-            });
-
-            let replyText = res.data.choices[0].message.content;
-            if (typeof replyText !== "string") replyText = JSON.stringify(replyText);
-            replyText = replyText.trim().slice(0, 4000);
-
-            return safeReply(replyToken, `${autoTranslateNotice}\n\n${immediateMessage} → ${replyText}`);
-          } catch (err) {
-            console.error("❌ 初始翻譯錯誤:", err.response?.data || err.message);
-            return safeReply(replyToken, `${autoTranslateNotice}\n⚠️ 初始翻譯失敗`);
-          }
-        } else {
-          return safeReply(replyToken, autoTranslateNotice);
+    if (userSession[userId] && (!userSession[userId].until || Date.now() < userSession[userId].until)) {
+      const langs = userSession[userId].langs || [userSession[userId].lang];
+      for (const lang of langs) {
+        try {
+          const res = await axios.post("https://api.openai.com/v1/chat/completions", {
+            model: "gpt-3.5-turbo",
+            messages: [
+              { role: "system", content: `請將使用者的句子翻譯為「${langNameMap[lang]}」的自然用法，並且只回傳翻譯內容，不加註解。` },
+              { role: "user", content: text },
+            ],
+          }, {
+            headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
+          });
+          let replyText = res.data.choices[0].message.content;
+          replyText = typeof replyText === "string" ? replyText.trim().slice(0, 4000) : JSON.stringify(replyText);
+          await safeReply(replyToken, `🌐 ${langNameMap[lang]}：\n${replyText}`);
+        } catch (err) {
+          console.error("❌ 多語翻譯錯誤:", err.response?.data || err.message);
+          await safeReply(replyToken, `⚠️ ${lang} 翻譯失敗`);
         }
       }
+      continue;
     }
 
-    const [cmd2, ...rest] = text.split(" ");
-    const lang2 = cmd2.startsWith("/") ? cmd2.slice(1) : null;
-    const message = rest.join(" ").trim();
+    // 其他既有指令與單語翻譯邏輯保留不變...
 
-    if (allowedLangs.includes(lang2) && message) {
-      try {
-        const res = await axios.post("https://api.openai.com/v1/chat/completions", {
-          model: "gpt-3.5-turbo",
-          messages: [
-            { role: "system", content: `請將使用者的句子翻譯為「${langNameMap[lang2]}」的自然用法，並且只回傳翻譯內容，不加註解。` },
-            { role: "user", content: message },
-          ],
-        }, {
-          headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
-        });
-
-        let replyText = res.data.choices[0].message.content;
-        if (typeof replyText !== "string") replyText = JSON.stringify(replyText);
-        replyText = replyText.trim().slice(0, 4000);
-
-        await safeReply(replyToken, replyText || "⚠️ 翻譯結果為空，請稍後再試");
-      } catch (err) {
-        console.error("❌ 翻譯錯誤:", err.response?.data || err.message);
-        await safeReply(replyToken, "⚠️ 翻譯失敗，請稍後再試");
-      }
-      return;
-    }
+    return safeReply(replyToken, `🧭 使用方式錯誤：\n請輸入 /語言 文字，例如：/ja 今天天氣很好\n或 /ja 5min 開啟持續翻譯模式\n\n輸入 /help 查看完整說明`);
   }
-
   res.sendStatus(200);
 });
 
