@@ -90,6 +90,11 @@ app.post("/webhook", line.middleware(config), express.json(), async (req, res) =
       message: text
     });
 
+    if (!text.startsWith("/")) {
+      // 不以 / 開頭的訊息一律忽略
+      continue;
+    }
+
     if (text === "/stop") {
       if (userSession[userId]) {
         delete userSession[userId];
@@ -131,31 +136,6 @@ app.post("/webhook", line.middleware(config), express.json(), async (req, res) =
         console.error("❌ 測試翻譯錯誤:", err.response?.data || err.message);
         return safeReply(replyToken, "⚠️ 測試失敗，請確認 OpenAI API 是否正確設置");
       }
-    }
-
-    if (userSession[userId] && Date.now() < userSession[userId].until) {
-      const activeLang = userSession[userId].lang;
-      try {
-        const res = await axios.post("https://api.openai.com/v1/chat/completions", {
-          model: "gpt-3.5-turbo",
-          messages: [
-            { role: "system", content: `請將使用者的句子翻譯為「${langNameMap[activeLang]}」的自然用法，並且只回傳翻譯內容，不加註解。` },
-            { role: "user", content: text },
-          ],
-        }, {
-          headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
-        });
-
-        let replyText = res.data.choices[0].message.content;
-        if (typeof replyText !== "string") replyText = JSON.stringify(replyText);
-        replyText = replyText.trim().slice(0, 4000);
-
-        await safeReply(replyToken, replyText);
-      } catch (err) {
-        console.error("❌ 持續翻譯錯誤:", err.response?.data || err.message);
-        await safeReply(replyToken, "⚠️ 自動翻譯失敗，請稍後再試");
-      }
-      continue;
     }
 
     const [cmd, timeArg, ...msgRest] = text.split(" ");
@@ -227,8 +207,6 @@ app.post("/webhook", line.middleware(config), express.json(), async (req, res) =
       }
       return;
     }
-
-    return safeReply(replyToken, `🧭 使用方式錯誤：\n請輸入 /語言 文字，例如：/ja 今天天氣很好\n或 /ja 5min 開啟持續翻譯模式\n\n輸入 /help 查看完整說明`);
   }
 
   res.sendStatus(200);
