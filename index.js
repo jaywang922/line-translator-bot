@@ -92,29 +92,38 @@ app.post("/webhook", line.middleware(config), express.json(), async (req, res) =
 
     if (!text.startsWith("/")) {
       // 不以 / 開頭的訊息不處理指令，但如果處於持續翻譯狀態則翻譯
-      if (userSession[userId] && Date.now() < userSession[userId].until) {
-        const activeLang = userSession[userId].lang;
-        try {
-          const res = await axios.post("https://api.openai.com/v1/chat/completions", {
-            model: "gpt-3.5-turbo",
-            messages: [
-              { role: "system", content: `請將使用者的句子翻譯為「${langNameMap[activeLang]}」的自然用法，並且只回傳翻譯內容，不加註解。` },
-              { role: "user", content: text },
-            ],
-          }, {
-            headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
-          });
+      if (userSession[userId]) {
+        const session = userSession[userId];
+        const now = Date.now();
 
-          let replyText = res.data.choices[0].message.content;
-          if (typeof replyText !== "string") replyText = JSON.stringify(replyText);
-          replyText = replyText.trim().slice(0, 4000);
+        if (now < session.until) {
+          const activeLang = session.lang;
+          try {
+            const res = await axios.post("https://api.openai.com/v1/chat/completions", {
+              model: "gpt-3.5-turbo",
+              messages: [
+                { role: "system", content: `請將使用者的句子翻譯為「${langNameMap[activeLang]}」的自然用法，並且只回傳翻譯內容，不加註解。` },
+                { role: "user", content: text },
+              ],
+            }, {
+              headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
+            });
 
-          await safeReply(replyToken, replyText);
-        } catch (err) {
-          console.error("❌ 持續翻譯錯誤:", err.response?.data || err.message);
-          await safeReply(replyToken, "⚠️ 自動翻譯失敗，請稍後再試");
+            let replyText = res.data.choices[0].message.content;
+            if (typeof replyText !== "string") replyText = JSON.stringify(replyText);
+            replyText = replyText.trim().slice(0, 4000);
+
+            await safeReply(replyToken, replyText);
+          } catch (err) {
+            console.error("❌ 持續翻譯錯誤:", err.response?.data || err.message);
+            await safeReply(replyToken, "⚠️ 自動翻譯失敗，請稍後再試");
+          }
+        } else {
+          delete userSession[userId];
+          await safeReply(replyToken, `⌛ 持續翻譯時間已結束，停止翻譯 ${langNameMap[session.lang]}`);
         }
         continue;
+      }
       }
 
       continue;
