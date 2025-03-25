@@ -91,12 +91,11 @@ app.post("/webhook", line.middleware(config), express.json(), async (req, res) =
     });
 
     if (!text.startsWith("/")) {
-  // 不以 / 開頭的訊息不處理指令，但如果處於持續翻譯狀態則翻譯
   if (userSession[userId]) {
     const session = userSession[userId];
-    const now = Date.now();
+    const nowTime = Date.now();
 
-    if (now < session.until) {
+    if (nowTime < session.until) {
       const activeLang = session.lang;
       try {
         const res = await axios.post("https://api.openai.com/v1/chat/completions", {
@@ -124,6 +123,7 @@ app.post("/webhook", line.middleware(config), express.json(), async (req, res) =
     }
   }
   continue;
+}
       }
       }
 
