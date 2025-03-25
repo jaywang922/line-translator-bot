@@ -123,11 +123,7 @@ app.post("/webhook", line.middleware(config), express.json(), async (req, res) =
     }
   }
   continue;
-}
-}
-    }
-
-    if (text === "/stop") {
+if (text === "/stop") {
       if (userSession[userId]) {
         delete userSession[userId];
         return safeReply(replyToken, "🛑 持續翻譯模式已關閉");
