@@ -19,6 +19,13 @@ const allowedLangs = [
 
 const userSession = {}; // 用來記錄使用者的自動翻譯狀態
 
+// 單語言快速翻譯用
+const isSingleLangCmd = (text) => {
+  const [cmd, ...rest] = text.trim().split(" ");
+  const lang = cmd.startsWith("/") ? cmd.slice(1) : null;
+  return allowedLangs.includes(lang) && rest.length > 0;
+}; // 用來記錄使用者的自動翻譯狀態
+
 const langNameMap = {
   "en": "英文",
   "ja": "日文",
@@ -140,11 +147,36 @@ ${replyText}` });
    ※ 可用逗號或空白分隔
 
 4️⃣ 停止翻譯模式：
-   /stop✅ 支援語言代碼：
+   /stop
 
+✅ 支援語言代碼：
 ${allowedLangs.map(l => '/' + l).join(' ')}`);
   }
-  res.sendStatus(200);
+  // ✅ 單句翻譯指令（例如 /en 你好）
+    if (isSingleLangCmd(text)) {
+      const [cmd, ...rest] = text.trim().split(" ");
+      const lang = cmd.slice(1);
+      const content = rest.join(" ");
+      try {
+        const res = await axios.post("https://api.openai.com/v1/chat/completions", {
+          model: "gpt-3.5-turbo",
+          messages: [
+            { role: "system", content: `請將使用者的句子翻譯為「${langNameMap[lang]}」的自然用法，並且只回傳翻譯內容，不加註解。` },
+            { role: "user", content: content },
+          ],
+        }, {
+          headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
+        });
+        let replyText = res.data.choices[0].message.content;
+        replyText = typeof replyText === "string" ? replyText.trim().slice(0, 4000) : JSON.stringify(replyText);
+        return safeReply(replyToken, replyText);
+      } catch (err) {
+        console.error("❌ 單句翻譯錯誤:", err.response?.data || err.message);
+        return safeReply(replyToken, "⚠️ 翻譯失敗，請稍後再試");
+      }
+    }
+
+    res.sendStatus(200);
 });
 
 app.get("/", (_, res) => res.send("✅ Bot is running"));
