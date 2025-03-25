@@ -20,9 +20,15 @@ const allowedLangs = [
 const userSession = {}; // 用來記錄使用者的自動翻譯狀態
 
 // 單語言快速翻譯用
+const langAliasMap = {
+  "tw": "zh-TW",
+  "cn": "zh-CN"
+};
+
 const isSingleLangCmd = (text) => {
   const [cmd, ...rest] = text.trim().split(" ");
-  const lang = cmd.startsWith("/") ? cmd.slice(1) : null;
+  const rawLang = cmd.startsWith("/") ? cmd.slice(1) : null;
+  const lang = langAliasMap[rawLang] || rawLang;
   return allowedLangs.includes(lang) && rest.length > 0;
 }; // 用來記錄使用者的自動翻譯狀態
 
@@ -129,7 +135,30 @@ ${replyText}` });
       continue;
     }
 
-    // 其他既有指令與單語翻譯邏輯保留不變...
+    // ✅ 單句翻譯指令（例如 /en 你好）
+    if (isSingleLangCmd(text)) {
+      const [cmd, ...rest] = text.trim().split(" ");
+      const rawLang = cmd.slice(1);
+      const lang = langAliasMap[rawLang] || rawLang;
+      const content = rest.join(" ");
+      try {
+        const res = await axios.post("https://api.openai.com/v1/chat/completions", {
+          model: "gpt-3.5-turbo",
+          messages: [
+            { role: "system", content: `請將使用者的句子翻譯為「${langNameMap[lang]}」的自然用法，並且只回傳翻譯內容，不加註解。` },
+            { role: "user", content: content },
+          ],
+        }, {
+          headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
+        });
+        let replyText = res.data.choices[0].message.content;
+        replyText = typeof replyText === "string" ? replyText.trim().slice(0, 4000) : JSON.stringify(replyText);
+        return safeReply(replyToken, replyText);
+      } catch (err) {
+        console.error("❌ 單句翻譯錯誤:", err.response?.data || err.message);
+        return safeReply(replyToken, "⚠️ 翻譯失敗，請稍後再試");
+      }
+    }
 
     return safeReply(replyToken, `🧭 使用方式說明：
 
@@ -150,12 +179,13 @@ ${replyText}` });
    /stop
 
 ✅ 支援語言代碼：
-${allowedLangs.map(l => '/' + l).join(' ')}`);
+/en /ja /ko /zh-TW /zh-CN /fr /de /es /th /it /nl /ru /id /vi /pt /ms`);
   }
   // ✅ 單句翻譯指令（例如 /en 你好）
     if (isSingleLangCmd(text)) {
       const [cmd, ...rest] = text.trim().split(" ");
-      const lang = cmd.slice(1);
+      const rawLang = cmd.slice(1);
+      const lang = langAliasMap[rawLang] || rawLang;
       const content = rest.join(" ");
       try {
         const res = await axios.post("https://api.openai.com/v1/chat/completions", {
