@@ -23,8 +23,8 @@ const langNameMap = {
   "en": "英文",
   "ja": "日文",
   "ko": "韓文",
-  "zh-TW": "繁體中文",
-  "zh-CN": "簡體中文",
+  "tw": "繁體中文",
+  "cn": "簡體中文",
   "fr": "法文",
   "de": "德文",
   "es": "西班牙文",
@@ -73,10 +73,10 @@ app.post("/webhook", line.middleware(config), express.json(), async (req, res) =
     }
 
     if (text.startsWith("/multi")) {
-      const match = text.match(/^\/multi\s+([a-zA-Z\-,]+)(?:\s+(\d{1,2})min)?$/);
+      const match = text.match(/^\/multi\s+([a-zA-Z\-\s,]+)(?:\s+(\d{1,2})min)?$/);
       if (!match) return safeReply(replyToken, `⚠️ 格式錯誤，請使用：/multi 語言1,語言2 [Xmin]\n例如：/multi en,ja 5min`);
 
-      const langs = match[1].split(",").map(s => s.trim()).filter(Boolean);
+      const langs = match[1].split(/[,\s]+/).map(s => s.trim()).filter(Boolean);
       const durationMin = match[2] ? parseInt(match[2]) : null;
 
       if (langs.length === 0 || langs.length > 4)
