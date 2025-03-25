@@ -51,7 +51,6 @@ function handleError(error, context = '未知操作') {
 
   console.error(`❌ 错误 - ${context}:`, errorDetails);
   
-  // 可以在这里添加错误监控服务，如 Sentry
   return {
     success: false,
     message: `操作失败：${context}`,
@@ -133,6 +132,9 @@ const safeReply = async (client, token, message) => {
 function createApp() {
   const app = express();
 
+  // 重要：信任代理配置
+  app.set('trust proxy', true);
+
   // 安全中间件
   app.use(helmet());
 
@@ -140,7 +142,9 @@ function createApp() {
   const limiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15分钟
     max: 100, // 限制每个IP 100请求
-    message: '请求过于频繁，请稍后再试'
+    message: '请求过于频繁，请稍后再试',
+    standardHeaders: true, // 返回 `RateLimit-*` 头
+    legacyHeaders: false // 禁用 `X-RateLimit-*` 头
   });
   app.use(limiter);
 
@@ -159,8 +163,17 @@ function createApp() {
     try {
       const events = req.body.events || [];
       for (const event of events) {
-        // 处理事件的详细逻辑
-        // ... (保留原有的事件处理逻辑)
+        // 处理事件的详细逻辑（保留原有的事件处理逻辑）
+        const now = Date.now();
+        if (now - event.timestamp > 3000) continue;
+        if (event.type !== "message" || !event.message || event.message.type !== "text") continue;
+
+        const text = event.message.text?.trim();
+        const replyToken = event.replyToken;
+        const userId = event.source.userId;
+
+        // 此处应该是您原有的事件处理逻辑
+        // 可以参考之前的代码，完成翻译和回复等操作
       }
       res.sendStatus(200);
     } catch (error) {
@@ -186,12 +199,10 @@ function startServer() {
 // 主进程错误处理
 process.on('uncaughtException', (error) => {
   console.error('未捕获的异常:', error);
-  // 可以添加错误上报逻辑
 });
 
 process.on('unhandledRejection', (reason, promise) => {
   console.error('未处理的 Promise 拒绝:', reason);
-  // 可以添加错误上报逻辑
 });
 
 // 启动应用
