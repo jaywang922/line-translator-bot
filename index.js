@@ -17,6 +17,7 @@ const allowedLangs = [
   "it", "nl", "ru", "id", "vi", "pt", "ms"
 ];
 
+const userSession = {}; // 用來記錄使用者的自動翻譯狀態
 
 const safeReply = async (token, message) => {
   try {
@@ -54,10 +55,7 @@ app.post("/webhook", line.middleware(config), express.json(), async (req, res) =
 
   for (const event of events) {
     const now = Date.now();
-    if (now - event.timestamp > 3000) {
-      
-      continue;
-    }
+    if (now - event.timestamp > 3000) continue;
     if (event.type !== "message" || !event.message || event.message.type !== "text") continue;
 
     const text = event.message.text?.trim();
@@ -65,9 +63,14 @@ app.post("/webhook", line.middleware(config), express.json(), async (req, res) =
     const userId = event.source.userId;
     console.log("👤 使用者:", userId, "說了:", text);
 
-    
-
     if (!text) continue;
+
+    // 📝 記錄輸入
+    console.log("📝 使用者輸入紀錄：", {
+      time: new Date(event.timestamp).toISOString(),
+      userId,
+      message: text
+    });
 
     // /whoami 指令
     if (text === "/whoami") {
@@ -106,18 +109,59 @@ app.post("/webhook", line.middleware(config), express.json(), async (req, res) =
       }
     }
 
-    // 分析 /語言 指令格式
-    const [cmd, ...rest] = text.split(" ");
-    const langCode = cmd.startsWith("/") ? cmd.slice(1) : null;
-    const message = rest.join(" ").trim();
-
-    // ✅ 格式正確才翻譯
-    if (allowedLangs.includes(langCode) && message) {
+    // ✅ 自動翻譯狀態：持續翻譯模式是否啟用
+    if (userSession[userId] && Date.now() < userSession[userId].until) {
+      const activeLang = userSession[userId].lang;
       try {
         const res = await axios.post("https://api.openai.com/v1/chat/completions", {
           model: "gpt-3.5-turbo",
           messages: [
-            { role: "system", content: `請將以下句子翻譯為 ${langCode}` },
+            { role: "system", content: `請將以下句子翻譯為 ${activeLang}` },
+            { role: "user", content: text },
+          ],
+        }, {
+          headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
+        });
+
+        let replyText = res.data.choices[0].message.content;
+        if (typeof replyText !== "string") replyText = JSON.stringify(replyText);
+        replyText = replyText.trim().slice(0, 4000);
+
+        await safeReply(replyToken, replyText);
+      } catch (err) {
+        console.error("❌ 持續翻譯錯誤:", err.response?.data || err.message);
+        await safeReply(replyToken, "⚠️ 自動翻譯失敗，請稍後再試");
+      }
+      continue;
+    }
+
+    // /語言 Xmin 指令（啟用自動翻譯）
+    const [cmd, timeArg, ...msgRest] = text.split(" ");
+    const langCode = cmd.startsWith("/") ? cmd.slice(1) : null;
+    const minMatch = timeArg?.match(/^(\d{1,2})min$/);
+
+    if (allowedLangs.includes(langCode) && minMatch) {
+      const minutes = parseInt(minMatch[1]);
+      if (minutes > 0 && minutes <= 60) {
+        userSession[userId] = {
+          lang: langCode,
+          until: Date.now() + minutes * 60 * 1000,
+        };
+        return safeReply(replyToken, `🕒 已啟動：${minutes} 分鐘內的訊息將自動翻譯為 ${langCode}`);
+      }
+    }
+
+    // 傳統 /語言 文字 格式
+    const [cmd2, ...rest] = text.split(" ");
+    const lang2 = cmd2.startsWith("/") ? cmd2.slice(1) : null;
+    const message = rest.join(" ").trim();
+
+    if (allowedLangs.includes(lang2) && message) {
+      try {
+        const res = await axios.post("https://api.openai.com/v1/chat/completions", {
+          model: "gpt-3.5-turbo",
+          messages: [
+            { role: "system", content: `請將以下句子翻譯為 ${lang2}` },
             { role: "user", content: message },
           ],
         }, {
@@ -133,12 +177,10 @@ app.post("/webhook", line.middleware(config), express.json(), async (req, res) =
         console.error("❌ 翻譯錯誤:", err.response?.data || err.message);
         await safeReply(replyToken, "⚠️ 翻譯失敗，請稍後再試");
       }
-
       return;
     }
 
-    // ❌ 格式錯誤一律回 help
-    return safeReply(replyToken, `🧭 使用方式錯誤：\n請輸入 /語言 文字，例如：/ja 今天天氣很好\n\n輸入 /help 查看完整說明`);
+    return safeReply(replyToken, `🧭 使用方式錯誤：\n請輸入 /語言 文字，例如：/ja 今天天氣很好\n或 /ja 5min 開啟持續翻譯模式\n\n輸入 /help 查看完整說明`);
   }
 
   res.sendStatus(200);
