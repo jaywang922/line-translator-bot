@@ -72,6 +72,16 @@ app.post("/webhook", line.middleware(config), express.json(), async (req, res) =
       message: text
     });
 
+    // /stop 指令
+    if (text === "/stop") {
+      if (userSession[userId]) {
+        delete userSession[userId];
+        return safeReply(replyToken, "🛑 持續翻譯模式已關閉");
+      } else {
+        return safeReply(replyToken, "ℹ️ 目前未啟用任何持續翻譯模式");
+      }
+    }
+
     // /whoami 指令
     if (text === "/whoami") {
       return safeReply(replyToken, `🆔 你的 userId 是：${userId}`);
@@ -79,7 +89,14 @@ app.post("/webhook", line.middleware(config), express.json(), async (req, res) =
 
     // /help 指令
     if (text === "/help") {
-      return safeReply(replyToken, `🧭 使用方式：\n1️⃣ 輸入 /語言代碼 要翻譯的內容\n例如：/ja 今天天氣很好\n✅ 支援語言：${allowedLangs.map(l => '/' + l).join(' ')}`);
+      return safeReply(replyToken, `🧭 使用方式：
+1️⃣ 輸入 /語言代碼 要翻譯的內容
+例如：/ja 今天天氣很好
+2️⃣ 輸入 /語言代碼 Xmin 可啟用持續翻譯模式
+例如：/en 10min 表示接下來 10 分鐘都翻譯為英文
+3️⃣ 若要中止持續翻譯，請輸入 /stop
+
+✅ 支援語言：${allowedLangs.map(l => '/' + l).join(' ')}`);
     }
 
     // /test 指令
@@ -91,7 +108,7 @@ app.post("/webhook", line.middleware(config), express.json(), async (req, res) =
         const res = await axios.post("https://api.openai.com/v1/chat/completions", {
           model: "gpt-3.5-turbo",
           messages: [
-            { role: "system", content: `請將以下句子翻譯為 ${testLang}` },
+            { role: "system", content: `請將使用者的句子翻譯為「${1}語言」的自然用法，並且只回傳翻譯內容，不加註解。` },
             { role: "user", content: testPrompt },
           ],
         }, {
