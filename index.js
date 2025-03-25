@@ -54,6 +54,18 @@ app.post("/webhook", line.middleware(config), express.json(), async (req, res) =
 
   for (const event of events) {
     const now = Date.now();
+    if (now - event.timestamp > 3000) continue;
+
+    const userId = event.source.userId;
+    const text = event.message.text?.trim();
+
+    // 📝 紀錄使用者輸入資訊
+    console.log("📝 使用者輸入紀錄：", {
+      time: new Date(event.timestamp).toISOString(),
+      userId,
+      message: text
+    });
+    const now = Date.now();
     if (now - event.timestamp > 3000) {
       
       continue;
